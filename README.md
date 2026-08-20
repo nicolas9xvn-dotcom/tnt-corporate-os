@@ -53,6 +53,17 @@ Gemini API" bên dưới.
   lực** — 0005 thêm trạng thái `approval_required`/`rejected` vào constraint của bảng `tasks`,
   0006 gán các approval_level ở trên.
 - [x] ~~Chưa gate theo `approval_level`~~ (đã xây và đã gán cho AME29 — xem trên).
+- **Ô "Giao việc" giờ nhận được cả link website và file đính kèm** (`src/lib/gemini.ts`,
+  `run-task.ts`, `run-task-form.tsx`): dán link vào ô nội dung → Gemini tự đọc nội dung
+  trang đó (dùng tool `url_context` có sẵn của Gemini, không cần code tự tải trang). Đính
+  kèm được ảnh/PDF/txt/csv (tối đa 3 file, mỗi file ≤ 4MB) — file gửi thẳng cho Gemini xử
+  lý, không lưu lại trong database (chỉ ghi tên file vào lịch sử task cho biết đã đính kèm
+  gì). **Đính kèm file chỉ hoạt động với agent tự chạy ngay** (`approval_level` NULL hoặc 1)
+  — 5 agent cần duyệt (CEO AME29 + 4 agent Level 2 ở trên) sẽ không thấy ô chọn file, vì
+  file không được lưu lại nên tới lúc người duyệt bấm "Duyệt" (có khi vài giờ sau) thì
+  không còn gì để gửi cho Gemini — làm giả tính năng "hoạt động" trong tình huống đó sẽ gây
+  hiểu lầm. Link website thì không bị giới hạn này (do chỉ là chữ, được lưu lại bình
+  thường) — dùng được với mọi agent kể cả agent cần duyệt.
 
 **TODO — chưa kết nối thật:**
 - [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,

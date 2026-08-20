@@ -1,14 +1,61 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
-import { runAgentTask } from "@/lib/actions/run-task";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { runAgentTask, type RunTaskAttachment } from "@/lib/actions/run-task";
 
-export function RunTaskForm({ agentId }: { agentId: string }) {
+const MAX_FILES = 3;
+const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB per file
+
+function readAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // Strip the "data:<mime>;base64," prefix — Gemini wants raw base64.
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+export function RunTaskForm({
+  agentId,
+  approvalLevel,
+}: {
+  agentId: string;
+  approvalLevel: number | null;
+}) {
   const [input, setInput] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const [output, setOutput] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const attachmentsSupported = (approvalLevel ?? 1) < 2;
+
+  function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    setError(null);
+
+    if (picked.length > MAX_FILES) {
+      setError(`Tối đa ${MAX_FILES} file mỗi lần.`);
+      return;
+    }
+    const tooBig = picked.find((f) => f.size > MAX_FILE_BYTES);
+    if (tooBig) {
+      setError(`File "${tooBig.name}" quá 4MB — chọn file nhỏ hơn.`);
+      return;
+    }
+    setFiles(picked);
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -17,19 +64,36 @@ export function RunTaskForm({ agentId }: { agentId: string }) {
     setPendingApproval(false);
     setPending(true);
 
-    const result = await runAgentTask(agentId, input);
+    try {
+      const attachments: RunTaskAttachment[] = await Promise.all(
+        files.map(async (file) => ({
+          name: file.name,
+          mimeType: file.type || "application/octet-stream",
+          base64: await readAsBase64(file),
+        }))
+      );
 
-    setPending(false);
-    if (result.error) {
-      setError(result.error);
-      return;
+      const result = await runAgentTask(agentId, input, attachments);
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      if (result.pendingApproval) {
+        setPendingApproval(true);
+        setInput("");
+        setFiles([]);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+      setOutput(result.output ?? "");
+      setFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch {
+      setError("Không đọc được file đính kèm — thử lại.");
+    } finally {
+      setPending(false);
     }
-    if (result.pendingApproval) {
-      setPendingApproval(true);
-      setInput("");
-      return;
-    }
-    setOutput(result.output ?? "");
   }
 
   return (
@@ -40,13 +104,51 @@ export function RunTaskForm({ agentId }: { agentId: string }) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           rows={3}
-          required
-          placeholder="Việc cần làm là gì?"
+          placeholder="Việc cần làm là gì? Có thể dán link website vào đây, agent sẽ tự đọc."
           className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500"
         />
+
+        {attachmentsSupported ? (
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.txt,.csv"
+              onChange={handleFilesChange}
+              className="block w-full text-xs text-slate-400 file:mr-2 file:rounded-md file:border file:border-slate-700 file:bg-slate-900 file:px-2 file:py-1 file:text-xs file:text-slate-300 hover:file:border-cyan-700"
+            />
+            {files.length > 0 && (
+              <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                {files.map((file, i) => (
+                  <li
+                    key={`${file.name}-${i}`}
+                    className="flex items-center gap-1.5 rounded-md border border-cyan-900/40 bg-slate-900/60 px-2 py-1 text-[0.7rem] text-slate-300"
+                  >
+                    {file.name}
+                    <button
+                      type="button"
+                      onClick={() => removeFile(i)}
+                      className="text-slate-500 hover:text-red-400"
+                      aria-label={`Bỏ file ${file.name}`}
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <p className="text-[0.7rem] italic text-slate-600">
+            Agent này cần duyệt trước khi chạy — chưa hỗ trợ đính kèm file, chỉ gửi được nội
+            dung chữ (dán link website vẫn được).
+          </p>
+        )}
+
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || (!input.trim() && files.length === 0)}
           className="self-start rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {pending ? "Agent đang xử lý..." : "Gửi"}

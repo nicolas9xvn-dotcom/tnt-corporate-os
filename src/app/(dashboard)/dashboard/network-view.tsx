@@ -188,7 +188,7 @@ function AgentDetailPanel({
               {node.system_prompt}
             </p>
           </div>
-          <RunTaskForm agentId={node.id} />
+          <RunTaskForm agentId={node.id} approvalLevel={node.approval_level} />
         </>
       ) : (
         <p className="mt-3 text-xs italic text-amber-400/80">
