@@ -64,8 +64,29 @@ Gemini API" bên dưới.
   server tải file về và gửi cho Gemini, xong thì xoá file khỏi Storage (dù duyệt hay từ
   chối, không giữ lại file thừa). **Cần chạy `supabase/migrations/0008_task_attachments.sql`
   trên Supabase (SQL Editor) để tạo bucket + policy trước khi dùng.**
+- **Giao diện "màn hình LED cảm ứng" + trạng thái hoạt động thật** (`src/lib/sound.ts`,
+  `src/components/sound-effects.tsx`, `network-view.tsx`, `globals.css`,
+  `supabase/migrations/0009_agent_status_realtime.sql`):
+  - Âm thanh chạm màn hình đổi sang file thật do founder cung cấp
+    (`public/sounds/hud-click.mp3`), phát mỗi khi bấm nút/link ở bất kỳ đâu trong app, kèm
+    hiệu ứng gợn sóng neon (ripple) tại đúng điểm chạm.
+  - Panel chi tiết agent (`AgentDetailPanel`) có hiệu ứng quét ngang kiểu màn hình LED
+    (`.hud-scan`).
+  - **Agent nào đang thật sự xử lý task sẽ nhấp nháy neon** (viền cyan pulsing) và **dây nối
+    lên cấp trên sáng lên, chạy nhanh như dòng điện** — trạng thái này lấy thật từ cột
+    `agents.status` qua Supabase Realtime (không phải hiệu ứng dựng sẵn): `run-task.ts` và
+    `approvals.ts` set `status = 'running'` đúng lúc gọi Gemini thật, set lại `idle`/`error`
+    khi xong, và mọi phiên đang mở `/dashboard` (kể cả người khác) thấy thay đổi ngay lập
+    tức. **Giới hạn thật cần biết:** đây là trạng thái "agent đang xử lý task", không phải
+    "file đang được chuyển giao giữa các phòng ban" — hệ thống hiện chưa có cơ chế agent tự
+    động chuyển việc cho agent khác (routing/workflow thật), nên dây nối sáng lên phản ánh
+    hoạt động thật của agent đó, không phải một lần chuyển file thật giữa 2 bộ phận. **Cần
+    chạy `supabase/migrations/0009_agent_status_realtime.sql`** trên Supabase (SQL Editor)
+    để bật Realtime cho bảng `agents` + tạo hàm `set_agent_status`.
 
 **TODO — chưa kết nối thật:**
+- [ ] Chưa có cơ chế agent tự động chuyển việc/file cho agent khác (routing/workflow thật
+      giữa các bộ phận) — hiện mỗi task chỉ chạy trong đúng 1 agent do người dùng chọn.
 - [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
       không nhớ các lần giao việc trước) và panel chưa hiện lại lịch sử task cũ của agent.
 - [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase

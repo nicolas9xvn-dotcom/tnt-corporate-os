@@ -52,7 +52,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
 
   const { data: task, error: taskError } = await supabase
     .from("tasks")
-    .select("id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id)")
+    .select("id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id)")
     .eq("id", taskId)
     .single();
   if (taskError || !task) return { error: taskError?.message ?? "Không tìm thấy task." };
@@ -64,6 +64,8 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
     return { error: "Bạn không có quyền duyệt task này." };
   }
   if (!agent.system_prompt) return { error: "Agent chưa có system prompt." };
+
+  await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "running" });
 
   try {
     const geminiAttachments: GeminiAttachment[] = [];
@@ -91,12 +93,14 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
       output,
     });
     await cleanupAttachments(supabase, attachments);
+    await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "idle" });
 
     revalidatePath("/dashboard");
     return { error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
     await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", taskId);
+    await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "error" });
     return { error: message };
   }
 }

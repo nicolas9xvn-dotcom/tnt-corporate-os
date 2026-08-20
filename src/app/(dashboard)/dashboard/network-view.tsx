@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   Background,
   Controls,
@@ -16,6 +16,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { Agent, AgentLevel, AgentStatus, AgentTreeNode, Department } from "@/lib/types";
 import { buildAgentTree, layoutRadialTree, pickDirection, type RadialPosition } from "@/lib/org-tree";
+import { createClient } from "@/lib/supabase/client";
 import { DepartmentIcon } from "./department-icon";
 import { RunTaskForm } from "./run-task-form";
 
@@ -61,9 +62,56 @@ const handleStyle = { opacity: 0, width: 1, height: 1 };
 
 type AgentNodeData = { agent: AgentTreeNode; department: Department | null };
 
+// Live agent status, kept in sync via Supabase Realtime — run-task.ts and
+// approvals.ts flip an agent's status to "running" for the duration of an
+// actual Gemini call, so this reflects real activity, not decoration.
+function useLiveAgentStatus(agents: Agent[]): Map<string, AgentStatus> {
+  const businessUnitId = agents[0]?.business_unit_id ?? null;
+  // Only overrides received live over Realtime — merged with `agents`
+  // (the server-rendered snapshot) below, so there's nothing to
+  // resynchronize when `agents` itself changes on navigation.
+  const [overrides, setOverrides] = useState<Map<string, AgentStatus>>(new Map());
+
+  useEffect(() => {
+    if (!businessUnitId) return;
+
+    let supabase: ReturnType<typeof createClient>;
+    try {
+      supabase = createClient();
+    } catch {
+      return;
+    }
+
+    const channel = supabase
+      .channel(`agents-status-${businessUnitId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "agents", filter: `business_unit_id=eq.${businessUnitId}` },
+        (payload) => {
+          const updated = payload.new as { id: string; status: AgentStatus };
+          setOverrides((prev) => new Map(prev).set(updated.id, updated.status));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [businessUnitId]);
+
+  return useMemo(() => {
+    const merged = new Map(agents.map((a) => [a.id, a.status]));
+    for (const [id, status] of overrides) {
+      if (merged.has(id)) merged.set(id, status);
+    }
+    return merged;
+  }, [agents, overrides]);
+}
+
 function AgentNodeCard({ data }: NodeProps<Node<AgentNodeData>>) {
   const { agent, department } = data;
   const isExecutive = agent.level === "executive";
+  const isRunning = agent.status === "running";
 
   return (
     <div
@@ -72,9 +120,11 @@ function AgentNodeCard({ data }: NodeProps<Node<AgentNodeData>>) {
       data-hud-sound
       style={{ width: NODE_WIDTH }}
       className={`cursor-pointer rounded-md border px-3.5 py-3 text-left backdrop-blur-sm transition-transform hover:scale-[1.03] ${
-        isExecutive
-          ? "border-cyan-500/70 bg-cyan-950/50 shadow-[0_0_32px_-6px_rgba(34,211,238,0.8)]"
-          : "border-cyan-900/40 bg-slate-950/70 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.6)]"
+        isRunning
+          ? "hud-node-active border-cyan-400/80 bg-cyan-950/60"
+          : isExecutive
+            ? "border-cyan-500/70 bg-cyan-950/50 shadow-[0_0_32px_-6px_rgba(34,211,238,0.8)]"
+            : "border-cyan-900/40 bg-slate-950/70 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.6)]"
       }`}
     >
       <Handle type="target" id="top" position={Position.Top} style={handleStyle} />
@@ -124,7 +174,7 @@ function AgentDetailPanel({
   onClose: () => void;
 }) {
   return (
-    <div className="hud-expand-in hud-panel absolute inset-x-3 bottom-3 z-20 max-h-[70%] overflow-y-auto rounded-lg p-4 sm:inset-x-auto sm:top-3 sm:right-3 sm:bottom-auto sm:w-[22rem]">
+    <div className="hud-expand-in hud-panel hud-scan absolute inset-x-3 bottom-3 z-20 max-h-[70%] overflow-y-auto rounded-lg p-4 sm:inset-x-auto sm:top-3 sm:right-3 sm:bottom-auto sm:w-[22rem]">
       <div className="flex items-start justify-between gap-3">
         <div>
           {department && (
@@ -201,31 +251,41 @@ function AgentDetailPanel({
 
 function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Department[] }) {
   const { setCenter, fitView } = useReactFlow();
-  const [selected, setSelected] = useState<{ node: AgentTreeNode; department: Department | null } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const statusById = useLiveAgentStatus(agents);
 
-  const { nodes, edges } = useMemo(() => {
+  const { nodes, edges, nodeDataById } = useMemo(() => {
     const departmentsById = new Map(departments.map((d) => [d.id, d]));
     const roots = buildAgentTree(agents);
     const positions = layoutRadialTree(roots);
 
     const nodes: Node[] = [];
     const edges: Edge[] = [];
+    const nodeDataById = new Map<string, AgentNodeData>();
 
     function walk(node: AgentTreeNode, parentPos?: RadialPosition) {
       const pos = positions.get(node.id) ?? { x: 0, y: 0 };
       const department = node.department_id ? departmentsById.get(node.department_id) ?? null : null;
+      const liveStatus = statusById.get(node.id) ?? node.status;
+      const liveNode: AgentTreeNode = { ...node, status: liveStatus };
+      const data: AgentNodeData = { agent: liveNode, department };
+      nodeDataById.set(node.id, data);
 
       nodes.push({
         id: node.id,
         type: "agent",
         position: pos,
-        data: { agent: node, department },
+        data,
         draggable: true,
       });
 
       if (parentPos) {
         const fromDir = pickDirection(parentPos, pos);
         const toDir = pickDirection(pos, parentPos);
+        // "Current flowing through the wire" — the edge into a node lights
+        // up brighter and animates faster while that agent is actually
+        // processing a task (real status, not a scripted demo).
+        const isActive = liveStatus === "running";
         edges.push({
           id: `${node.reports_to}-${node.id}`,
           source: node.reports_to as string,
@@ -233,12 +293,20 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
           sourceHandle: fromDir,
           targetHandle: toDir,
           animated: true,
-          style: {
-            stroke: "#22d3ee",
-            strokeOpacity: 0.85,
-            strokeWidth: 2,
-            filter: "drop-shadow(0 0 4px rgba(34, 211, 238, 0.65))",
-          },
+          className: isActive ? "hud-edge-active" : undefined,
+          style: isActive
+            ? {
+                stroke: "#a5f3fc",
+                strokeOpacity: 1,
+                strokeWidth: 3,
+                filter: "drop-shadow(0 0 10px rgba(34, 211, 238, 0.95))",
+              }
+            : {
+                stroke: "#22d3ee",
+                strokeOpacity: 0.85,
+                strokeWidth: 2,
+                filter: "drop-shadow(0 0 4px rgba(34, 211, 238, 0.65))",
+              },
         });
       }
 
@@ -249,13 +317,14 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
 
     roots.forEach((root) => walk(root));
 
-    return { nodes, edges };
-  }, [agents, departments]);
+    return { nodes, edges, nodeDataById };
+  }, [agents, departments, statusById]);
+
+  const selectedData = selectedId ? (nodeDataById.get(selectedId) ?? null) : null;
 
   const handleNodeClick = useCallback(
     (_event: MouseEvent, node: Node) => {
-      const data = node.data as AgentNodeData;
-      setSelected({ node: data.agent, department: data.department });
+      setSelectedId(node.id);
       setCenter(node.position.x + NODE_WIDTH / 2, node.position.y + NODE_HEIGHT / 2, {
         zoom: 1.15,
         duration: 450,
@@ -265,7 +334,7 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
   );
 
   const handleClose = useCallback(() => {
-    setSelected(null);
+    setSelectedId(null);
     fitView({ padding: 0.35, duration: 450 });
   }, [fitView]);
 
@@ -291,8 +360,8 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
         />
       </ReactFlow>
 
-      {selected && (
-        <AgentDetailPanel node={selected.node} department={selected.department} onClose={handleClose} />
+      {selectedData && (
+        <AgentDetailPanel node={selectedData.agent} department={selectedData.department} onClose={handleClose} />
       )}
     </div>
   );

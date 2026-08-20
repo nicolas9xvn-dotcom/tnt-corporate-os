@@ -98,6 +98,8 @@ export async function runAgentTask(
     return { error: null, pendingApproval: true };
   }
 
+  await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "running" });
+
   try {
     const geminiAttachments: GeminiAttachment[] = attachments.map((a) => ({
       mimeType: a.mimeType,
@@ -113,12 +115,14 @@ export async function runAgentTask(
       input: storedInput,
       output,
     });
+    await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "idle" });
 
     revalidatePath("/dashboard");
     return { error: null, output };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
     await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", task.id);
+    await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "error" });
     return { error: message };
   }
 }
