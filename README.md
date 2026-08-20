@@ -35,20 +35,21 @@ Gemini API" bên dưới.
   sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy. **Đã test thật trên production, hoạt động.**
   `GEMINI_API_KEY` đã cấu hình trên Vercel (free tier — key phải thuộc 1 project Google Cloud
   ở trạng thái "active"/còn free trial, không phải project cũ đã hết prepayment credits).
-- **Cơ chế duyệt (`approval_level`) đã xây xong** (`src/lib/actions/approvals.ts`,
-  `approvals-inbox.tsx`, `supabase/migrations/0005_task_approval_status.sql`): agent có
-  `approval_level >= 2` khi được giao việc sẽ tạo task ở trạng thái `approval_required` thay
-  vì chạy ngay — task xuất hiện trong mục "Chờ duyệt" ở đầu `/dashboard`. Level 2: chairman
-  hoặc đúng ceo của business unit đó mới duyệt/từ chối được; Level 3: chỉ chairman. Duyệt →
-  gọi Gemini thật và lưu kết quả; Từ chối → đánh dấu `rejected`, không gọi Gemini. **Hiện tại
-  cơ chế này chưa có tác dụng với agent nào** vì `approval_level` của toàn bộ 19 agent AME29
-  đang là `NULL` (mặc định = tự chạy, level 1) — founder chưa quyết định agent nào cần duyệt
-  ở level 2/3 nên chưa tự gán. Gán bằng cách sửa cột `approval_level` của agent đó trong
-  Supabase Table Editor (chưa có UI cho việc này, xem TODO).
-  **Cần chạy `supabase/migrations/0005_task_approval_status.sql` trên Supabase (SQL Editor)
-  trước khi dùng** — migration này thêm trạng thái `approval_required`/`rejected` vào
-  constraint của bảng `tasks`.
-- [x] ~~Chưa gate theo `approval_level`~~ (đã xây — xem trên).
+- **Cơ chế duyệt (`approval_level`) đã xây xong và đã gán cho AME29**
+  (`src/lib/actions/approvals.ts`, `approvals-inbox.tsx`,
+  `supabase/migrations/0005_task_approval_status.sql`,
+  `supabase/migrations/0006_approval_levels_ame29.sql`): agent có `approval_level >= 2` khi
+  được giao việc sẽ tạo task ở trạng thái `approval_required` thay vì chạy ngay — task xuất
+  hiện trong mục "Chờ duyệt" ở đầu `/dashboard`. Level 2: chairman hoặc đúng ceo của business
+  unit đó mới duyệt/từ chối được; Level 3: chỉ chairman. Duyệt → gọi Gemini thật và lưu kết
+  quả; Từ chối → đánh dấu `rejected`, không gọi Gemini. Founder đã quyết định (2026-08-20):
+  Level 2 — Content Director, Chiến lược Giá & Dịch vụ, Luật sư Thuế, Cố vấn Hành chính -
+  Pháp lý; Level 3 — CEO AME29; các agent còn lại để `NULL` (tự chạy).
+  **Cần chạy `supabase/migrations/0005_task_approval_status.sql` rồi
+  `supabase/migrations/0006_approval_levels_ame29.sql` trên Supabase (SQL Editor) để có hiệu
+  lực** — 0005 thêm trạng thái `approval_required`/`rejected` vào constraint của bảng `tasks`,
+  0006 gán các approval_level ở trên.
+- [x] ~~Chưa gate theo `approval_level`~~ (đã xây và đã gán cho AME29 — xem trên).
 
 **TODO — chưa kết nối thật:**
 - [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
@@ -60,10 +61,11 @@ Gemini API" bên dưới.
 - [ ] 4 role quản lý mới (Finance Manager, Admin & Legal Manager, Marketing Director,
       Brand & Design Manager) được tạo làm tầng trung gian nhưng **chưa có system prompt**
       — founder cung cấp sau, hiện để `NULL` (không giao việc được cho tới lúc đó).
-- [ ] `approval_level/responsibilities/tools/kpi/escalation_note` đã có cột trong schema
-      nhưng chưa điền giá trị thật cho từng agent — cần founder quyết định, không tự suy đoán.
-- [ ] Chưa có bảng `workflows`/`approvals` — Google Review workflow và cơ chế approval
-      1/2/3 mới dừng ở thiết kế, chưa có schema thật.
+- [ ] `responsibilities/tools/kpi/escalation_note` đã có cột trong schema nhưng chưa điền
+      giá trị thật cho từng agent — cần founder quyết định, không tự suy đoán. (`approval_level`
+      đã điền cho AME29 — xem trên.)
+- [ ] Chưa có bảng `workflows` riêng cho Google Review workflow (chỉ mới cơ chế approval
+      1/2/3 chung, dùng `tasks.status` — xem trên).
 - [ ] Knowledge Base / Report / Decision Log: bảng + RLS đã có, nhưng chưa có màn hình để
       tạo/xem — chỉ mới có ở tầng database (Task giờ đã hoạt động thật, xem trên).
 - [ ] Phase 2 trở đi (Executive Board, Red Team, Audit Log UI, tích hợp Google Maps / kế
