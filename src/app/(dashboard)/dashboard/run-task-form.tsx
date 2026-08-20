@@ -34,7 +34,7 @@ export function RunTaskForm({
   const [pending, setPending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const attachmentsSupported = (approvalLevel ?? 1) < 2;
+  const needsApproval = (approvalLevel ?? 1) >= 2;
 
   function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
@@ -108,43 +108,42 @@ export function RunTaskForm({
           className="rounded-md border border-slate-700 bg-slate-950 px-2.5 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500"
         />
 
-        {attachmentsSupported ? (
-          <div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,.pdf,.txt,.csv"
-              onChange={handleFilesChange}
-              className="block w-full text-xs text-slate-400 file:mr-2 file:rounded-md file:border file:border-slate-700 file:bg-slate-900 file:px-2 file:py-1 file:text-xs file:text-slate-300 hover:file:border-cyan-700"
-            />
-            {files.length > 0 && (
-              <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                {files.map((file, i) => (
-                  <li
-                    key={`${file.name}-${i}`}
-                    className="flex items-center gap-1.5 rounded-md border border-cyan-900/40 bg-slate-900/60 px-2 py-1 text-[0.7rem] text-slate-300"
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.txt,.csv"
+            onChange={handleFilesChange}
+            className="block w-full text-xs text-slate-400 file:mr-2 file:rounded-md file:border file:border-slate-700 file:bg-slate-900 file:px-2 file:py-1 file:text-xs file:text-slate-300 hover:file:border-cyan-700"
+          />
+          {files.length > 0 && (
+            <ul className="mt-1.5 flex flex-wrap gap-1.5">
+              {files.map((file, i) => (
+                <li
+                  key={`${file.name}-${i}`}
+                  className="flex items-center gap-1.5 rounded-md border border-cyan-900/40 bg-slate-900/60 px-2 py-1 text-[0.7rem] text-slate-300"
+                >
+                  {file.name}
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="text-slate-500 hover:text-red-400"
+                    aria-label={`Bỏ file ${file.name}`}
                   >
-                    {file.name}
-                    <button
-                      type="button"
-                      onClick={() => removeFile(i)}
-                      className="text-slate-500 hover:text-red-400"
-                      aria-label={`Bỏ file ${file.name}`}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : (
-          <p className="text-[0.7rem] italic text-slate-600">
-            Agent này cần duyệt trước khi chạy — chưa hỗ trợ đính kèm file, chỉ gửi được nội
-            dung chữ (dán link website vẫn được).
-          </p>
-        )}
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {needsApproval && (
+            <p className="mt-1.5 text-[0.7rem] italic text-slate-600">
+              Agent này cần duyệt trước khi chạy — file sẽ được lưu tạm và chỉ gửi cho AI sau
+              khi có người duyệt.
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"

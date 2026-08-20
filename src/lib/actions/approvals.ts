@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { callGemini } from "@/lib/gemini";
+import { callGemini, type GeminiAttachment } from "@/lib/gemini";
+import type { TaskAttachment } from "@/lib/types";
 
 export interface ApprovalResult {
   error: string | null;
@@ -15,12 +16,22 @@ interface ApprovalAgent {
   business_unit_id: string;
 }
 
+const ATTACHMENTS_BUCKET = "task-attachments";
+
 // Level 2: the chairman or the ceo of that agent's own business unit can
 // approve. Level 3: chairman only.
 function canDecide(viewerRole: string, viewerBusinessUnitId: string | null, agent: ApprovalAgent): boolean {
   if (viewerRole === "chairman") return true;
   const level = agent.approval_level ?? 1;
   return viewerRole === "ceo" && viewerBusinessUnitId === agent.business_unit_id && level <= 2;
+}
+
+async function cleanupAttachments(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  attachments: TaskAttachment[] | null
+) {
+  if (!supabase || !attachments || attachments.length === 0) return;
+  await supabase.storage.from(ATTACHMENTS_BUCKET).remove(attachments.map((a) => a.path));
 }
 
 export async function approveTask(taskId: string): Promise<ApprovalResult> {
@@ -41,12 +52,13 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
 
   const { data: task, error: taskError } = await supabase
     .from("tasks")
-    .select("id, input, status, agents(name, system_prompt, approval_level, business_unit_id)")
+    .select("id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id)")
     .eq("id", taskId)
     .single();
   if (taskError || !task) return { error: taskError?.message ?? "Không tìm thấy task." };
 
   const agent = task.agents as unknown as ApprovalAgent;
+  const attachments = task.attachments as TaskAttachment[] | null;
   if (task.status !== "approval_required") return { error: "Task này không ở trạng thái chờ duyệt." };
   if (!canDecide(viewer.role, viewer.business_unit_id, agent)) {
     return { error: "Bạn không có quyền duyệt task này." };
@@ -54,7 +66,21 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
   if (!agent.system_prompt) return { error: "Agent chưa có system prompt." };
 
   try {
-    const output = await callGemini(agent.system_prompt, task.input ?? "");
+    const geminiAttachments: GeminiAttachment[] = [];
+    if (attachments && attachments.length > 0) {
+      for (const file of attachments) {
+        const { data: blob, error: downloadError } = await supabase.storage
+          .from(ATTACHMENTS_BUCKET)
+          .download(file.path);
+        if (downloadError || !blob) {
+          throw new Error(`Không tải được file đính kèm "${file.name}": ${downloadError?.message ?? ""}`);
+        }
+        const base64 = Buffer.from(await blob.arrayBuffer()).toString("base64");
+        geminiAttachments.push({ mimeType: file.mimeType, base64 });
+      }
+    }
+
+    const output = await callGemini(agent.system_prompt, task.input ?? "", geminiAttachments);
 
     await supabase.from("tasks").update({ status: "done", output }).eq("id", taskId);
     await supabase.from("audit_log").insert({
@@ -64,6 +90,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
       input: task.input,
       output,
     });
+    await cleanupAttachments(supabase, attachments);
 
     revalidatePath("/dashboard");
     return { error: null };
@@ -92,12 +119,13 @@ export async function rejectTask(taskId: string): Promise<ApprovalResult> {
 
   const { data: task, error: taskError } = await supabase
     .from("tasks")
-    .select("id, input, status, agents(name, approval_level, business_unit_id)")
+    .select("id, input, status, attachments, agents(name, approval_level, business_unit_id)")
     .eq("id", taskId)
     .single();
   if (taskError || !task) return { error: taskError?.message ?? "Không tìm thấy task." };
 
   const agent = task.agents as unknown as ApprovalAgent;
+  const attachments = task.attachments as TaskAttachment[] | null;
   if (task.status !== "approval_required") return { error: "Task này không ở trạng thái chờ duyệt." };
   if (!canDecide(viewer.role, viewer.business_unit_id, agent)) {
     return { error: "Bạn không có quyền từ chối task này." };
@@ -111,6 +139,7 @@ export async function rejectTask(taskId: string): Promise<ApprovalResult> {
     input: task.input,
     output: "rejected",
   });
+  await cleanupAttachments(supabase, attachments);
 
   revalidatePath("/dashboard");
   return { error: null };

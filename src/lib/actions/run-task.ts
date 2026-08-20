@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { callGemini, type GeminiAttachment } from "@/lib/gemini";
+import type { TaskAttachment } from "@/lib/types";
 
 export interface RunTaskResult {
   error: string | null;
@@ -16,14 +17,19 @@ export interface RunTaskAttachment {
   base64: string;
 }
 
+const ATTACHMENTS_BUCKET = "task-attachments";
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-100);
+}
+
 // Executes one task through a specific agent's real system prompt.
-// approval_level 1 (or unset) runs immediately. approval_level 2/3 files the
-// task as "approval_required" instead of calling Gemini — see approvals.ts
-// for the approve/reject step that actually runs it. Attachments are only
-// supported on the immediate-run path: they're sent straight to Gemini and
-// never persisted, so there'd be nothing left to send once an approver
-// picks the task back up later — the UI hides the file input for agents
-// that require approval (see run-task-form.tsx).
+// approval_level 1 (or unset) runs immediately: attachments go straight to
+// Gemini in-memory, never touching storage. approval_level 2/3 files the
+// task as "approval_required" instead — since the file has to survive until
+// someone approves it later (possibly a different session), attachments are
+// uploaded to the private "task-attachments" Storage bucket and only read
+// back at approval time (see approvals.ts).
 export async function runAgentTask(
   agentId: string,
   input: string,
@@ -54,13 +60,6 @@ export async function runAgentTask(
   }
 
   const needsApproval = (agent.approval_level ?? 1) >= 2;
-  if (needsApproval && attachments.length > 0) {
-    return {
-      error:
-        "Agent này cần duyệt trước khi chạy nên chưa hỗ trợ đính kèm file — bỏ file, chỉ gửi nội dung chữ.",
-    };
-  }
-
   const attachmentNote =
     attachments.length > 0 ? `\n\n[Đính kèm: ${attachments.map((a) => a.name).join(", ")}]` : "";
   const storedInput = trimmed + attachmentNote;
@@ -80,6 +79,21 @@ export async function runAgentTask(
   if (insertError) return { error: insertError.message };
 
   if (needsApproval) {
+    if (attachments.length > 0) {
+      const uploaded: TaskAttachment[] = [];
+      for (const file of attachments) {
+        const path = `${task.id}/${sanitizeFileName(file.name)}`;
+        const { error: uploadError } = await supabase.storage
+          .from(ATTACHMENTS_BUCKET)
+          .upload(path, Buffer.from(file.base64, "base64"), {
+            contentType: file.mimeType,
+            upsert: true,
+          });
+        if (uploadError) return { error: `Upload file "${file.name}" thất bại: ${uploadError.message}` };
+        uploaded.push({ path, name: file.name, mimeType: file.mimeType });
+      }
+      await supabase.from("tasks").update({ attachments: uploaded }).eq("id", task.id);
+    }
     revalidatePath("/dashboard");
     return { error: null, pendingApproval: true };
   }

@@ -71,6 +71,14 @@ export interface AppUser {
   created_at: string;
 }
 
+// One file uploaded to the "task-attachments" Storage bucket for a task
+// awaiting approval — `path` is "{task_id}/{filename}" inside that bucket.
+export interface TaskAttachment {
+  path: string;
+  name: string;
+  mimeType: string;
+}
+
 export interface Task {
   id: string;
   agent_id: string;
@@ -79,6 +87,7 @@ export interface Task {
   status: TaskStatus;
   input: string | null;
   output: string | null;
+  attachments: TaskAttachment[] | null;
   created_at: string;
 }
 
