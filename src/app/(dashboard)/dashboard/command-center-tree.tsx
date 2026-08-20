@@ -1,11 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { BusinessUnitWithTree, UserRole } from "@/lib/types";
 import { CreateAgentForm } from "./create-agent-form";
 import { CreateDepartmentForm } from "./create-department-form";
 import { DepartmentIcon, DepartmentTabs } from "./department-icon";
-import { OrgChart } from "./org-chart";
+
+// React Flow measures/positions nodes on mount (ResizeObserver etc.), which
+// the server can't reproduce — rendering it during SSR causes a hydration
+// mismatch. Client-only avoids that.
+const NetworkView = dynamic(() => import("./network-view").then((m) => m.NetworkView), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[520px] items-center justify-center text-sm text-slate-600 sm:h-[620px]">
+      Đang tải sơ đồ tổ chức...
+    </div>
+  ),
+});
 
 function StatusBadge({ status }: { status: BusinessUnitWithTree["status"] }) {
   const isActive = status === "active";
@@ -115,7 +127,7 @@ function BusinessUnitCard({
       {open && (
         <div className="flex flex-col gap-4 border-t border-cyan-900/30 px-5 py-4">
           <DepartmentTabs departments={businessUnit.departments} />
-          <OrgChart agents={businessUnit.agents} departments={businessUnit.departments} />
+          <NetworkView agents={businessUnit.agents} departments={businessUnit.departments} />
 
           {canManage && (
             <div className="border-t border-cyan-900/20 pt-3">
