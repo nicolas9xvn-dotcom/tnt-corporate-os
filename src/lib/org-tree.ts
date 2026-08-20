@@ -27,11 +27,16 @@ export interface RadialPosition {
   y: number;
 }
 
-const RADIUS_STEP = 230;
 // Horizontal gap between independent root trees (normally there is exactly
 // one root — the business unit's executive — but this keeps multi-root data
 // readable instead of stacking nodes on top of each other).
-const ROOT_GAP = 950;
+const ROOT_GAP = 1400;
+// Minimum straight-line distance to keep between two adjacent siblings'
+// centers, so ~210px-wide node cards never touch.
+const MIN_NODE_GAP = 260;
+// Minimum radius increase per depth level, regardless of how much angular
+// room a ring has — keeps parent/child edges from being too short.
+const MIN_RING_GAP = 210;
 
 function countLeaves(node: AgentTreeNode): number {
   return node.children.length === 0
@@ -39,16 +44,28 @@ function countLeaves(node: AgentTreeNode): number {
     : node.children.reduce((sum, child) => sum + countLeaves(child), 0);
 }
 
-// Radial tree layout: each node's children split its angular slice
-// proportionally to their own subtree size, so branches never overlap.
+interface AngleEntry {
+  id: string;
+  rootIndex: number;
+  depth: number;
+  angleStart: number;
+  angleEnd: number;
+}
+
+// Radial tree layout in two passes:
+//  1. Give every node an angular slice proportional to its subtree size (so
+//     branches never cross one another).
+//  2. Derive each depth's radius from the narrowest slice that actually
+//     occurs at that depth, so two adjacent siblings are never closer than
+//     MIN_NODE_GAP apart — a fixed radius-per-depth would let dense rings
+//     (e.g. several single-agent branches sitting side by side) overlap.
 export function layoutRadialTree(roots: AgentTreeNode[]): Map<string, RadialPosition> {
-  const positions = new Map<string, RadialPosition>();
+  const entries: AngleEntry[] = [];
 
   roots.forEach((root, rootIndex) => {
-    const offsetX = rootIndex * ROOT_GAP;
-    positions.set(root.id, { x: offsetX, y: 0 });
+    entries.push({ id: root.id, rootIndex, depth: 0, angleStart: 0, angleEnd: Math.PI * 2 });
 
-    function place(node: AgentTreeNode, angleStart: number, angleEnd: number, depth: number) {
+    function assignAngles(node: AgentTreeNode, angleStart: number, angleEnd: number, depth: number) {
       const total = node.children.reduce((sum, child) => sum + countLeaves(child), 0) || 1;
       let cursor = angleStart;
 
@@ -57,21 +74,43 @@ export function layoutRadialTree(roots: AgentTreeNode[]): Map<string, RadialPosi
         const slice = ((angleEnd - angleStart) * weight) / total;
         const childStart = cursor;
         const childEnd = cursor + slice;
-        const mid = (childStart + childEnd) / 2;
-        const radius = depth * RADIUS_STEP;
 
-        positions.set(child.id, {
-          x: offsetX + radius * Math.cos(mid),
-          y: radius * Math.sin(mid),
-        });
-
-        place(child, childStart, childEnd, depth + 1);
+        entries.push({ id: child.id, rootIndex, depth, angleStart: childStart, angleEnd: childEnd });
+        assignAngles(child, childStart, childEnd, depth + 1);
         cursor = childEnd;
       }
     }
 
-    place(root, 0, Math.PI * 2, 1);
+    assignAngles(root, 0, Math.PI * 2, 1);
   });
+
+  const maxDepth = entries.reduce((max, e) => Math.max(max, e.depth), 0);
+  const minSliceByDepth = new Map<number, number>();
+  for (const entry of entries) {
+    if (entry.depth === 0) continue;
+    const width = entry.angleEnd - entry.angleStart;
+    const current = minSliceByDepth.get(entry.depth);
+    if (current === undefined || width < current) minSliceByDepth.set(entry.depth, width);
+  }
+
+  const radiusByDepth = new Map<number, number>([[0, 0]]);
+  for (let depth = 1; depth <= maxDepth; depth++) {
+    const narrowest = Math.min(minSliceByDepth.get(depth) ?? Math.PI, Math.PI / 2);
+    const requiredForSpacing = MIN_NODE_GAP / (2 * Math.sin(narrowest / 2));
+    const previous = radiusByDepth.get(depth - 1) ?? 0;
+    radiusByDepth.set(depth, Math.max(previous + MIN_RING_GAP, requiredForSpacing));
+  }
+
+  const positions = new Map<string, RadialPosition>();
+  for (const entry of entries) {
+    const offsetX = entry.rootIndex * ROOT_GAP;
+    const radius = radiusByDepth.get(entry.depth) ?? 0;
+    const mid = (entry.angleStart + entry.angleEnd) / 2;
+    positions.set(entry.id, {
+      x: offsetX + radius * Math.cos(mid),
+      y: radius * Math.sin(mid),
+    });
+  }
 
   return positions;
 }

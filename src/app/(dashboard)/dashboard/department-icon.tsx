@@ -77,8 +77,8 @@ function getVisual(department: Pick<Department, "code" | "name">): DepartmentVis
 }
 
 const SIZE = {
-  sm: { block: "h-6 w-6 rounded-md", icon: 12 },
-  md: { block: "h-11 w-11 rounded-xl", icon: 20 },
+  sm: { block: "h-8 w-8 rounded-lg", icon: 17 },
+  md: { block: "h-14 w-14 rounded-xl", icon: 26 },
 } as const;
 
 export function DepartmentIcon({
@@ -112,7 +112,7 @@ export function DepartmentTabs({ departments }: { departments: Department[] }) {
           className="flex shrink-0 flex-col items-center gap-1.5 rounded-lg px-1 py-1 text-center"
         >
           <DepartmentIcon department={dept} size="md" />
-          <span className="max-w-[4.5rem] truncate text-[0.68rem] font-medium text-slate-400">
+          <span className="max-w-[5.5rem] truncate text-xs font-medium text-slate-400">
             {dept.name}
           </span>
         </div>
