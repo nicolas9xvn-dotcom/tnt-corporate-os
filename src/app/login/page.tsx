@@ -3,13 +3,11 @@ import { LoginForm } from "./login-form";
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-4">
-      <div className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900/60 p-8 shadow-xl">
+    <main className="flex min-h-screen items-center justify-center px-4">
+      <div className="hud-panel w-full max-w-sm rounded-xl p-8">
         <div className="mb-6 text-center">
-          <p className="text-xs font-semibold uppercase tracking-widest text-sky-400">
-            TNT AI Corporate OS
-          </p>
-          <h1 className="mt-2 text-xl font-bold text-slate-100">Đăng nhập</h1>
+          <p className="hud-eyebrow text-xs">TNT AI Corporate OS</p>
+          <h1 className="hud-title hud-glow-text mt-2 text-xl font-bold text-white">Đăng nhập</h1>
         </div>
 
         {isSupabaseConfigured ? (

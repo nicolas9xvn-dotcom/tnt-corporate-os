@@ -33,15 +33,15 @@ const LEVEL_LABEL: Record<AgentLevel, string> = {
 };
 
 const LEVEL_STYLE: Record<AgentLevel, string> = {
-  executive: "bg-sky-500/15 text-sky-300 border-sky-800",
+  executive: "bg-cyan-500/15 text-cyan-300 border-cyan-700 shadow-[0_0_10px_-2px_rgba(34,211,238,0.7)]",
   director: "bg-violet-500/15 text-violet-300 border-violet-800",
   manager: "bg-amber-500/15 text-amber-300 border-amber-800",
   specialist: "bg-slate-700/40 text-slate-300 border-slate-700",
 };
 
 const STATUS_DOT: Record<AgentStatus, string> = {
-  active: "bg-emerald-400",
-  running: "bg-sky-400 animate-pulse",
+  active: "bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]",
+  running: "bg-cyan-400 shadow-[0_0_6px_2px_rgba(34,211,238,0.7)] animate-pulse",
   idle: "bg-slate-500",
   waiting: "bg-amber-400",
   warning: "bg-amber-400",
@@ -62,8 +62,15 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 };
 
 function AgentCard({ node, department }: { node: AgentTreeNode; department: Department | null }) {
+  const isExecutive = node.level === "executive";
   return (
-    <div className="flex flex-col gap-1 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
+    <div
+      className={`flex flex-col gap-1 rounded-md border px-3 py-2 backdrop-blur-sm ${
+        isExecutive
+          ? "border-cyan-600/60 bg-cyan-950/30 shadow-[0_0_24px_-8px_rgba(34,211,238,0.6)]"
+          : "border-cyan-900/30 bg-slate-950/60"
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-slate-100">{node.name}</span>
         {node.level && (
@@ -105,7 +112,7 @@ function AgentBranch({
     <li className="relative pl-4">
       <AgentCard node={node} department={department} />
       {node.children.length > 0 && (
-        <ul className="mt-2 flex flex-col gap-2 border-l border-slate-800 pl-4">
+        <ul className="mt-2 flex flex-col gap-2 border-l border-cyan-900/40 pl-4">
           {node.children.map((child) => (
             <AgentBranch key={child.id} node={child} departmentsById={departmentsById} />
           ))}

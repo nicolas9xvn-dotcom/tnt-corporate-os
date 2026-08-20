@@ -11,12 +11,15 @@ function StatusBadge({ status }: { status: BusinessUnitWithTree["status"] }) {
   const isActive = status === "active";
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+      className={`flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium ${
         isActive
-          ? "bg-emerald-900/60 text-emerald-300"
-          : "bg-slate-800 text-slate-400"
+          ? "border-emerald-700/60 bg-emerald-950/50 text-emerald-300"
+          : "border-slate-700 bg-slate-800/60 text-slate-400"
       }`}
     >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.6)]" : "bg-slate-500"}`}
+      />
       {isActive ? "Đang hoạt động" : "Sắp triển khai"}
     </span>
   );
@@ -89,7 +92,7 @@ function BusinessUnitCard({
   const totalAgents = businessUnit.agents.length;
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-900/40">
+    <div className="hud-panel rounded-lg">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -97,7 +100,7 @@ function BusinessUnitCard({
       >
         <div>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-bold text-slate-100">{businessUnit.name}</h3>
+            <h3 className="hud-title text-base font-bold text-white">{businessUnit.name}</h3>
             <StatusBadge status={businessUnit.status} />
           </div>
           {businessUnit.ceo_title && (
@@ -110,12 +113,12 @@ function BusinessUnitCard({
       </button>
 
       {open && (
-        <div className="flex flex-col gap-4 border-t border-slate-800 px-5 py-4">
+        <div className="flex flex-col gap-4 border-t border-cyan-900/30 px-5 py-4">
           <DepartmentTabs departments={businessUnit.departments} />
           <OrgChart agents={businessUnit.agents} departments={businessUnit.departments} />
 
           {canManage && (
-            <div className="border-t border-slate-800/80 pt-3">
+            <div className="border-t border-cyan-900/20 pt-3">
               <button
                 type="button"
                 onClick={() => setManageOpen((v) => !v)}

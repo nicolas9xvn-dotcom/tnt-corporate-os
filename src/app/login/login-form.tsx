@@ -50,7 +50,7 @@ export function LoginForm() {
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500"
+          className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.15)]"
           placeholder="ban@congty.com"
         />
       </div>
@@ -66,7 +66,7 @@ export function LoginForm() {
           autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500"
+          className="rounded-md border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-500 focus:shadow-[0_0_0_3px_rgba(34,211,238,0.15)]"
           placeholder="••••••••"
         />
       </div>
@@ -80,7 +80,7 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={loading}
-        className="mt-2 rounded-md bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 rounded-md bg-cyan-400 px-4 py-2 text-sm font-semibold text-slate-950 shadow-[0_0_20px_-4px_rgba(34,211,238,0.8)] transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {loading ? "Đang đăng nhập..." : "Đăng nhập"}
       </button>

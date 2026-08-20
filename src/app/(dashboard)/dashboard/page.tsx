@@ -107,9 +107,9 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="rounded-lg border border-slate-800 bg-slate-900/40 p-6">
-        <p className="text-xs uppercase tracking-widest text-slate-500">Tập đoàn</p>
-        <h2 className="mt-1 text-2xl font-bold text-slate-100">
+      <section className="hud-panel rounded-lg p-6">
+        <p className="hud-eyebrow text-xs">Tập đoàn</p>
+        <h2 className="hud-title hud-glow-text mt-1 text-2xl font-bold text-white">
           {organization?.name ?? (
             <span className="text-base font-normal text-amber-300">
               Chưa có dòng nào trong bảng <code>organizations</code> — tạo thủ công trong

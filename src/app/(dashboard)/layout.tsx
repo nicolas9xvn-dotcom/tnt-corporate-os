@@ -30,20 +30,18 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
-      <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/60 px-6 py-4">
+    <div className="min-h-screen text-slate-100">
+      <header className="hud-panel mx-3 mt-3 flex items-center justify-between rounded-lg px-6 py-4 sm:mx-6 sm:mt-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-sky-400">
-            TNT AI Corporate OS
-          </p>
-          <h1 className="text-lg font-bold">CEO Command Center</h1>
+          <p className="hud-eyebrow text-xs">TNT AI Corporate OS</p>
+          <h1 className="hud-title text-lg font-bold text-white">CEO Command Center</h1>
         </div>
 
         <div className="flex items-center gap-4 text-sm">
           {currentUser && (
-            <span className="text-slate-400">
+            <span className="hidden text-slate-400 sm:inline">
               {currentUser.email}{" "}
-              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs font-medium uppercase text-sky-300">
+              <span className="rounded-full border border-cyan-800/60 bg-cyan-950/50 px-2 py-0.5 text-xs font-medium uppercase text-cyan-300">
                 {currentUser.role}
               </span>
             </span>
@@ -52,7 +50,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 transition hover:border-slate-500 hover:text-white"
+                className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 transition hover:border-cyan-700 hover:text-cyan-300"
               >
                 Đăng xuất
               </button>
@@ -61,7 +59,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-6xl px-3 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }
