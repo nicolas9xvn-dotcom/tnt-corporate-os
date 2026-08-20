@@ -4,7 +4,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { runAgentTask, createTaskDraft, cancelTaskDraft } from "@/lib/actions/run-task";
 import { createClient } from "@/lib/supabase/client";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
-import type { DelegatedResult } from "@/lib/actions/agent-runner";
+import type { DelegatedResult, GeneratedImage } from "@/lib/actions/agent-runner";
 import type { TaskAttachment } from "@/lib/types";
 
 const MAX_FILES = 5;
@@ -21,6 +21,7 @@ export function RunTaskForm({
   const [files, setFiles] = useState<File[]>([]);
   const [output, setOutput] = useState<string | null>(null);
   const [delegatedTo, setDelegatedTo] = useState<DelegatedResult[]>([]);
+  const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
@@ -60,6 +61,7 @@ export function RunTaskForm({
     setError(null);
     setOutput(null);
     setDelegatedTo([]);
+    setGeneratedImage(null);
     setPendingApproval(false);
 
     let draftTaskId: string | undefined;
@@ -107,6 +109,7 @@ export function RunTaskForm({
       }
       setOutput(result.output ?? "");
       setDelegatedTo(result.delegatedTo ?? []);
+      setGeneratedImage(result.generatedImage ?? null);
       resetFiles();
     } catch {
       setError("Có lỗi khi xử lý file — thử lại.");
@@ -185,6 +188,18 @@ export function RunTaskForm({
         <p className="mt-2 text-xs text-violet-300">
           Agent này cần duyệt trước khi chạy — đã gửi vào mục &quot;Chờ duyệt&quot; ở đầu trang.
         </p>
+      )}
+
+      {generatedImage && (
+        <div className="mt-2">
+          <p className="hud-eyebrow text-[0.65rem]">Ảnh đã tạo</p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- data: URI, not an optimizable static asset */}
+          <img
+            src={`data:${generatedImage.mimeType};base64,${generatedImage.base64}`}
+            alt="Ảnh do AI tạo"
+            className="mt-1 max-w-full rounded-md border border-cyan-900/40"
+          />
+        </div>
       )}
 
       {output && (

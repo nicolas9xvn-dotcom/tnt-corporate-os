@@ -179,6 +179,27 @@ Gemini API" bên dưới.
     quyền sửa agent — `agents_write`) — staff không thấy mục này.
   - **Cần chạy `supabase/migrations/0012_agent_house_rules.sql`** trên Supabase (SQL Editor)
     trước khi dùng.
+- **Tạo ảnh thật miễn phí cho agent Đồ họa & Thương hiệu MỀU**
+  (`src/lib/actions/agent-runner.ts` — `generateAgentImage`,
+  `supabase/migrations/0013_image_generation.sql`): agent này giờ khi được giao việc (kèm
+  ảnh nail mẫu) sẽ **tạo ra 1 ảnh thật mới** theo đúng phong cách ảnh mẫu, dùng model tạo
+  ảnh riêng của Gemini (`gemini-2.5-flash-image`) — **dùng chung `GEMINI_API_KEY` đã có, free
+  tier, không cần tài khoản/API key trả phí mới**. Ảnh tạo ra hiện ngay trong ô "Kết quả" và
+  cũng được lưu lại trong Storage (`task-attachments`, path `{task_id}/generated.png`) để có
+  lịch sử. Chỉ agent này có khả năng này (bật qua cột `agents.image_generation`, hiện chưa có
+  UI bật/tắt — chỉnh qua Supabase Table Editor nếu muốn bật cho agent khác).
+  - **Giới hạn thật, đã giải thích với founder:** AI tạo ảnh không đáng tin cậy để vẽ CHỮ
+    (banner khuyến mãi, địa chỉ, tiếng Nhật...) — chỉ dùng để tạo ảnh nail mới theo đúng
+    tông màu/phong cách, không dùng để tự động ra 1 tấm poster marketing hoàn chỉnh có chữ.
+  - **Tên model chưa xác minh được thật** (`gemini-2.5-flash-image`) — y hệt tình huống với
+    Gemini text/DeepSeek/Grok/OpenAI ở trên. Nếu báo lỗi "không trả về ảnh nào", đổi qua biến
+    môi trường `GEMINI_IMAGE_MODEL` (xem tên đúng tại aistudio.google.com hoặc docs Gemini API
+    hiện tại).
+  - Gói free tier của Gemini cho tạo ảnh có thể giới hạn số lượt/ngày chặt hơn so với chữ —
+    chưa kiểm tra được con số chính xác (sandbox không gọi ra ngoài để test), nhưng nhu cầu
+    2-3 ảnh/ngày của founder nhiều khả năng nằm trong hạn mức free.
+  - **Cần chạy `supabase/migrations/0013_image_generation.sql`** trên Supabase (SQL Editor)
+    trước khi dùng.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

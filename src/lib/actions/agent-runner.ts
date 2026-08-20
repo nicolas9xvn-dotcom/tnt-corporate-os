@@ -1,11 +1,17 @@
-import { GoogleGenAI, type FunctionCall, type FunctionResponse } from "@google/genai";
+import { GoogleGenAI, Modality, type FunctionCall, type FunctionResponse } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
+import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
 const MAX_OUTPUT_TOKENS = 4096;
+// Gemini's own native image-output model — free tier (same GEMINI_API_KEY as
+// text), not verified live (this sandbox can't reach the API). Override via
+// GEMINI_IMAGE_MODEL if this name is stale by the time you're reading this,
+// same situation the project already hit once with the text model name.
+const IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash-image";
 
 // How many reports_to hops deep a task can cascade (executive -> director
 // -> manager -> specialist is 4 levels in the current AME29 org chart) and
@@ -28,6 +34,7 @@ export interface RunnerAgent {
   name: string;
   system_prompt: string;
   house_rules: string | null;
+  image_generation: boolean;
 }
 
 // Combines the agent's core system prompt with any standing rule the
@@ -48,9 +55,15 @@ export interface DelegatedResult {
   output: string;
 }
 
+export interface GeneratedImage {
+  mimeType: string;
+  base64: string;
+}
+
 export interface AgentConversationResult {
   output: string;
   delegatedTo: DelegatedResult[];
+  generatedImage?: GeneratedImage;
 }
 
 type Part = {
@@ -64,7 +77,7 @@ type Turn = { role: string; parts: Part[] };
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
   const { data } = await supabase
     .from("agents")
-    .select("id, name, system_prompt, house_rules")
+    .select("id, name, system_prompt, house_rules, image_generation")
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
 
@@ -73,7 +86,42 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     name: r.name,
     system_prompt: r.system_prompt as string,
     house_rules: r.house_rules,
+    image_generation: r.image_generation,
   }));
+}
+
+// Generates a real image via Gemini's native image output — used only for
+// agents flagged image_generation (see migration 0013). Throws if the model
+// doesn't return an image part at all (e.g. a stale/wrong IMAGE_MODEL name).
+async function generateAgentImage(
+  ai: GoogleGenAI,
+  systemInstruction: string,
+  input: string,
+  attachments: GeminiAttachment[]
+): Promise<{ text: string; image: GeneratedImage }> {
+  const response = await ai.models.generateContent({
+    model: IMAGE_MODEL,
+    contents: [
+      { text: input },
+      ...attachments.map((a) => ({ inlineData: { mimeType: a.mimeType, data: a.base64 } })),
+    ],
+    config: { systemInstruction, responseModalities: [Modality.TEXT, Modality.IMAGE] },
+  });
+
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  const imagePart = parts.find((p) => p.inlineData?.data);
+  const text = parts.find((p) => p.text)?.text ?? response.text ?? "";
+
+  if (!imagePart?.inlineData?.data) {
+    throw new Error(
+      `Model tạo ảnh (${IMAGE_MODEL}) không trả về ảnh nào — có thể tên model đã đổi, kiểm tra biến môi trường GEMINI_IMAGE_MODEL.`
+    );
+  }
+
+  return {
+    text,
+    image: { mimeType: imagePart.inlineData.mimeType ?? "image/png", base64: imagePart.inlineData.data },
+  };
 }
 
 // Runs one agent's turn on an EXISTING task row — the caller already
@@ -102,11 +150,30 @@ export async function runAgentConversation(params: {
       throw new Error("Server chưa cấu hình GEMINI_API_KEY — xem README.");
     }
 
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const systemInstruction = buildSystemInstruction(agent);
+
+    if (agent.image_generation) {
+      const { text, image } = await generateAgentImage(ai, systemInstruction, input, attachments);
+      const imagePath = `${taskId}/generated.png`;
+      const { error: uploadError } = await supabase.storage
+        .from(ATTACHMENTS_BUCKET)
+        .upload(imagePath, Buffer.from(image.base64, "base64"), { contentType: image.mimeType, upsert: true });
+      const finalText = text || "Đã tạo ảnh mới.";
+
+      await supabase
+        .from("tasks")
+        .update({ status: "done", output: finalText, output_image_path: uploadError ? null : imagePath })
+        .eq("id", taskId);
+      await supabase.from("audit_log").insert({ actor: userId, action: "run_task", target: agent.name, input, output: finalText });
+      await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "idle" });
+
+      return { output: finalText, delegatedTo: [], generatedImage: image };
+    }
+
     const directReports = depth < MAX_DELEGATION_DEPTH ? await fetchDirectReports(supabase, agent.id) : [];
     const canDelegate = directReports.length > 0 && budget.remaining > 0;
     const history = await loadAgentHistory(supabase, agent.id);
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const systemInstruction = buildSystemInstruction(agent);
 
     const contents: Turn[] = [
       ...history.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
