@@ -5,7 +5,16 @@ import type { GeminiTurn } from "@/lib/gemini";
 // conversation history on the next call — bounds token usage/cost while
 // still covering a multi-part submission (e.g. a report built up over
 // several "Giao việc" rounds).
-const HISTORY_LIMIT = 8;
+const HISTORY_LIMIT = 20;
+
+// Per-turn character cap — keeps one unusually long past task (e.g. a
+// fully compiled report) from dominating the context on every later call.
+const MAX_TURN_CHARS = 6000;
+
+function truncate(text: string): string {
+  if (text.length <= MAX_TURN_CHARS) return text;
+  return `${text.slice(0, MAX_TURN_CHARS)}\n[...đã cắt bớt, bản đầy đủ xem trong lịch sử task]`;
+}
 
 // Loads this agent's recent finished tasks as prior conversation turns, so
 // a new task actually remembers what was discussed/produced before instead
@@ -30,8 +39,8 @@ export async function loadAgentHistory(
   const turns: GeminiTurn[] = [];
   for (const row of rows) {
     if (!row.input || !row.output) continue;
-    turns.push({ role: "user", text: row.input });
-    turns.push({ role: "model", text: row.output });
+    turns.push({ role: "user", text: truncate(row.input) });
+    turns.push({ role: "model", text: truncate(row.output) });
   }
   return turns;
 }

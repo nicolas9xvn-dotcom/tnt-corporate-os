@@ -116,7 +116,7 @@ export function RunTaskForm({
     <div className="mt-3 border-t border-slate-800 pt-3">
       <p className="hud-eyebrow text-[0.65rem]">Giao việc</p>
       <p className="mt-1 text-[0.7rem] text-slate-500">
-        Agent nhớ nội dung + kết quả của 8 lần giao việc gần nhất — có thể chia nhỏ việc lớn
+        Agent nhớ nội dung + kết quả của 20 lần giao việc gần nhất — có thể chia nhỏ việc lớn
         ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước.
       </p>
       <form onSubmit={handleSubmit} className="mt-1.5 flex flex-col gap-2">
