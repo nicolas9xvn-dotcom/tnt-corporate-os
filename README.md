@@ -32,11 +32,11 @@ Gemini API" bên dưới.
   agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `gemini-3.6-flash` với đúng
   `system_prompt` của agent đó → lưu kết quả thật vào bảng `tasks` + `audit_log`. Chỉ hoạt
   động với agent đã có `system_prompt` (15/19 agent AME29); 4 role quản lý còn thiếu prompt
-  sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy.
+  sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy. **Đã test thật trên production, hoạt động.**
+  `GEMINI_API_KEY` đã cấu hình trên Vercel (free tier — key phải thuộc 1 project Google Cloud
+  ở trạng thái "active"/còn free trial, không phải project cũ đã hết prepayment credits).
 
 **TODO — chưa kết nối thật:**
-- [ ] Chưa cấu hình `GEMINI_API_KEY` trên Vercel — xem "Kết nối Gemini API" bên dưới.
-      Thiếu biến này thì nút "Giao việc" báo lỗi rõ ràng, không crash.
 - [ ] **Chưa gate theo `approval_level`** — mọi agent chạy task ngay lập tức, kể cả
       manager/executive lẽ ra cần người duyệt trước (Level 2/3 theo thiết kế). Founder chưa
       quyết định approval_level cho từng agent nên bước duyệt chưa được xây.
