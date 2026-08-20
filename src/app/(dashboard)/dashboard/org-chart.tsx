@@ -1,6 +1,7 @@
 "use client";
 
 import type { Agent, AgentLevel, AgentStatus, AgentTreeNode, Department } from "@/lib/types";
+import { DepartmentIcon } from "./department-icon";
 
 function buildAgentTree(agents: Agent[]): AgentTreeNode[] {
   const byId = new Map(agents.map((a) => [a.id, a]));
@@ -60,7 +61,7 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   offline: "Offline",
 };
 
-function AgentCard({ node, departmentName }: { node: AgentTreeNode; departmentName: string | null }) {
+function AgentCard({ node, department }: { node: AgentTreeNode; department: Department | null }) {
   return (
     <div className="flex flex-col gap-1 rounded-md border border-slate-800 bg-slate-950/60 px-3 py-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -77,9 +78,10 @@ function AgentCard({ node, departmentName }: { node: AgentTreeNode; departmentNa
       </div>
       <div className="flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
         {node.role && <span>{node.role}</span>}
-        {departmentName && (
-          <span className="rounded bg-slate-800/80 px-1.5 py-0.5 text-[0.65rem] text-slate-400">
-            {departmentName}
+        {department && (
+          <span className="flex items-center gap-1 rounded bg-slate-800/60 py-0.5 pl-0.5 pr-1.5 text-[0.65rem] text-slate-400">
+            <DepartmentIcon department={department} size="sm" />
+            {department.name}
           </span>
         )}
       </div>
@@ -95,13 +97,13 @@ function AgentBranch({
   departmentsById,
 }: {
   node: AgentTreeNode;
-  departmentsById: Map<string, string>;
+  departmentsById: Map<string, Department>;
 }) {
-  const departmentName = node.department_id ? departmentsById.get(node.department_id) ?? null : null;
+  const department = node.department_id ? departmentsById.get(node.department_id) ?? null : null;
 
   return (
     <li className="relative pl-4">
-      <AgentCard node={node} departmentName={departmentName} />
+      <AgentCard node={node} department={department} />
       {node.children.length > 0 && (
         <ul className="mt-2 flex flex-col gap-2 border-l border-slate-800 pl-4">
           {node.children.map((child) => (
@@ -118,7 +120,7 @@ export function OrgChart({ agents, departments }: { agents: Agent[]; departments
     return <p className="text-sm text-slate-600">Chưa có agent nào trong công ty con này.</p>;
   }
 
-  const departmentsById = new Map(departments.map((d) => [d.id, d.name]));
+  const departmentsById = new Map(departments.map((d) => [d.id, d]));
   const roots = buildAgentTree(agents);
 
   return (

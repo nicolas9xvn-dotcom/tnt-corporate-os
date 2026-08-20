@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { BusinessUnitWithTree, UserRole } from "@/lib/types";
 import { CreateAgentForm } from "./create-agent-form";
 import { CreateDepartmentForm } from "./create-department-form";
+import { DepartmentIcon, DepartmentTabs } from "./department-icon";
 import { OrgChart } from "./org-chart";
 
 function StatusBadge({ status }: { status: BusinessUnitWithTree["status"] }) {
@@ -48,10 +49,11 @@ function DepartmentBlock({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center justify-between text-left"
       >
-        <span className="text-sm font-semibold text-slate-200">
+        <span className="flex items-center gap-2 text-sm font-semibold text-slate-200">
+          <DepartmentIcon department={department} size="sm" />
           {department.name}
           {department.code && (
-            <span className="ml-2 text-xs font-normal text-slate-500">{department.code}</span>
+            <span className="text-xs font-normal text-slate-500">{department.code}</span>
           )}
         </span>
         <span className="text-xs text-slate-500">
@@ -109,6 +111,7 @@ function BusinessUnitCard({
 
       {open && (
         <div className="flex flex-col gap-4 border-t border-slate-800 px-5 py-4">
+          <DepartmentTabs departments={businessUnit.departments} />
           <OrgChart agents={businessUnit.agents} departments={businessUnit.departments} />
 
           {canManage && (
