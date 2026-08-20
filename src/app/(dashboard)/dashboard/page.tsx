@@ -2,12 +2,14 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type {
   Agent,
+  AppUser,
   BusinessUnit,
   BusinessUnitWithTree,
   Department,
   Organization,
 } from "@/lib/types";
 import { CommandCenterTree } from "./command-center-tree";
+import { CreateBusinessUnitForm } from "./create-business-unit-form";
 
 function buildTree(
   businessUnits: BusinessUnit[],
@@ -44,6 +46,20 @@ export default async function DashboardPage() {
 
   const supabase = await createClient();
   if (!supabase) return null;
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  let viewer: AppUser | null = null;
+  if (authUser) {
+    const { data } = await supabase
+      .from("users")
+      .select("id, email, role, business_unit_id, created_at")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    viewer = data;
+  }
 
   const [orgRes, buRes, deptRes, agentRes] = await Promise.all([
     supabase.from("organizations").select("id, name, created_at").limit(1).maybeSingle(),
@@ -100,12 +116,26 @@ export default async function DashboardPage() {
       </section>
 
       {tree.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-800 p-8 text-center text-slate-500">
-          Chưa có công ty con nào trong database. Thêm dòng vào bảng{" "}
-          <code className="rounded bg-black/30 px-1">business_units</code> để bắt đầu.
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-dashed border-slate-800 p-8 text-center text-slate-500">
+          <p>Chưa có công ty con nào trong database.</p>
+          {viewer?.role === "chairman" ? (
+            <CreateBusinessUnitForm />
+          ) : (
+            <p className="text-xs">
+              Chỉ chairman mới tạo được công ty con — liên hệ chairman hoặc thêm thủ công qua
+              Supabase Table Editor (bảng <code className="rounded bg-black/30 px-1">business_units</code>).
+            </p>
+          )}
         </div>
       ) : (
-        <CommandCenterTree businessUnits={tree} />
+        <>
+          <CommandCenterTree
+            businessUnits={tree}
+            viewerRole={viewer?.role ?? null}
+            viewerBusinessUnitId={viewer?.business_unit_id ?? null}
+          />
+          {viewer?.role === "chairman" && <CreateBusinessUnitForm />}
+        </>
       )}
     </div>
   );

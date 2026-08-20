@@ -9,18 +9,22 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
 - Project Next.js khởi tạo (App Router, TypeScript, Tailwind v4).
 - Migration SQL Phase 1 đầy đủ 10 bảng + RLS theo role (`chairman` / `ceo` / `staff`) —
   xem `supabase/migrations/`.
+- Đã nối một project Supabase thật, deploy live trên Vercel (`tnt-corporate-os.vercel.app`).
 - Trang đăng nhập thật (Supabase Auth, email/mật khẩu) tại `/login`.
 - CEO Command Center rút gọn tại `/dashboard`: Tập đoàn → Công ty con → Phòng ban → Agent,
   đọc dữ liệu thật từ Supabase (không có dữ liệu giả — nếu bảng rỗng thì hiển thị trạng thái
   rỗng, không bịa số liệu).
+- Form tạo công ty con / phòng ban / agent ngay trong `/dashboard` (server actions trong
+  `src/lib/actions/command-center.ts`), ẩn/hiện theo quyền: chairman tạo được công ty con ở
+  bất kỳ đâu; ceo chỉ tạo phòng ban/agent trong đúng công ty con của mình (RLS chặn ở tầng DB
+  nếu ai đó cố lách qua UI).
 
 **TODO — chưa kết nối thật:**
-- [ ] Chưa nối vào project Supabase thật (cần `NEXT_PUBLIC_SUPABASE_URL` +
-      `NEXT_PUBLIC_SUPABASE_ANON_KEY`, xem mục "Kết nối Supabase" bên dưới).
 - [ ] Chưa gọi Claude API ở đâu cả (chưa có route xử lý agent task) — Phase 1 chỉ có
       cấu trúc dữ liệu + hiển thị, phần "agent thực thi task qua Claude API" là bước kế tiếp.
-- [ ] Chưa có UI tạo/sửa company/department/agent (chỉ đọc); thêm dữ liệu qua Supabase
-      Table Editor hoặc SQL trong lúc chưa có UI quản trị.
+      Trường `system_prompt` đã lưu được nhưng chưa dùng để gọi model.
+- [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase
+      Table Editor trong lúc chưa có UI quản trị đầy đủ.
 - [ ] Chưa có UI gán role/business_unit_id cho user mới (mặc định mọi user mới là `staff`,
       không thuộc business unit nào — chairman phải tự sửa trong Supabase Table Editor).
 - [ ] Knowledge Base / Task / Report / Decision Log: bảng + RLS đã có, nhưng chưa có

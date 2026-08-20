@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import type { BusinessUnitWithTree } from "@/lib/types";
+import type { BusinessUnitWithTree, UserRole } from "@/lib/types";
+import { CreateAgentForm } from "./create-agent-form";
+import { CreateDepartmentForm } from "./create-department-form";
 
 function StatusBadge({ status }: { status: BusinessUnitWithTree["status"] }) {
   const isActive = status === "active";
@@ -31,8 +33,10 @@ function AgentRow({ agent }: { agent: BusinessUnitWithTree["departments"][number
 
 function DepartmentBlock({
   department,
+  canManage,
 }: {
   department: BusinessUnitWithTree["departments"][number];
+  canManage: boolean;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -55,19 +59,28 @@ function DepartmentBlock({
       </button>
 
       {open && (
-        <ul className="mt-3 flex flex-col gap-2">
-          {department.agents.length === 0 ? (
-            <li className="text-xs text-slate-600">Chưa có agent nào trong phòng ban này.</li>
-          ) : (
-            department.agents.map((agent) => <AgentRow key={agent.id} agent={agent} />)
-          )}
-        </ul>
+        <div className="mt-3 flex flex-col gap-2">
+          <ul className="flex flex-col gap-2">
+            {department.agents.length === 0 ? (
+              <li className="text-xs text-slate-600">Chưa có agent nào trong phòng ban này.</li>
+            ) : (
+              department.agents.map((agent) => <AgentRow key={agent.id} agent={agent} />)
+            )}
+          </ul>
+          {canManage && <CreateAgentForm departmentId={department.id} />}
+        </div>
       )}
     </div>
   );
 }
 
-function BusinessUnitCard({ businessUnit }: { businessUnit: BusinessUnitWithTree }) {
+function BusinessUnitCard({
+  businessUnit,
+  canManage,
+}: {
+  businessUnit: BusinessUnitWithTree;
+  canManage: boolean;
+}) {
   const [open, setOpen] = useState(true);
   const totalAgents = businessUnit.departments.reduce((sum, d) => sum + d.agents.length, 0);
 
@@ -98,21 +111,32 @@ function BusinessUnitCard({ businessUnit }: { businessUnit: BusinessUnitWithTree
             <p className="text-sm text-slate-600">Chưa có phòng ban nào cho công ty con này.</p>
           ) : (
             businessUnit.departments.map((dept) => (
-              <DepartmentBlock key={dept.id} department={dept} />
+              <DepartmentBlock key={dept.id} department={dept} canManage={canManage} />
             ))
           )}
+          {canManage && <CreateDepartmentForm businessUnitId={businessUnit.id} />}
         </div>
       )}
     </div>
   );
 }
 
-export function CommandCenterTree({ businessUnits }: { businessUnits: BusinessUnitWithTree[] }) {
+export function CommandCenterTree({
+  businessUnits,
+  viewerRole,
+  viewerBusinessUnitId,
+}: {
+  businessUnits: BusinessUnitWithTree[];
+  viewerRole: UserRole | null;
+  viewerBusinessUnitId: string | null;
+}) {
   return (
     <div className="flex flex-col gap-4">
-      {businessUnits.map((bu) => (
-        <BusinessUnitCard key={bu.id} businessUnit={bu} />
-      ))}
+      {businessUnits.map((bu) => {
+        const canManage =
+          viewerRole === "chairman" || (viewerRole === "ceo" && viewerBusinessUnitId === bu.id);
+        return <BusinessUnitCard key={bu.id} businessUnit={bu} canManage={canManage} />;
+      })}
     </div>
   );
 }
