@@ -8,6 +8,7 @@ import type {
   Department,
   Organization,
 } from "@/lib/types";
+import { ApprovalsInbox, type PendingTask } from "./approvals-inbox";
 import { CommandCenterTree } from "./command-center-tree";
 import { CreateBusinessUnitForm } from "./create-business-unit-form";
 
@@ -105,8 +106,40 @@ export default async function DashboardPage() {
 
   const tree = buildTree(businessUnits, departments, agents);
 
+  let pendingTasks: PendingTask[] = [];
+  if (viewer && (viewer.role === "chairman" || viewer.role === "ceo")) {
+    const { data: pendingRows } = await supabase
+      .from("tasks")
+      .select("id, input, created_at, agents(name, approval_level, business_unit_id)")
+      .eq("status", "approval_required")
+      .order("created_at", { ascending: true });
+
+    pendingTasks = (pendingRows ?? []).map((row) => {
+      const agent = row.agents as unknown as {
+        name: string;
+        approval_level: number | null;
+        business_unit_id: string;
+      };
+      const canDecide =
+        viewer!.role === "chairman" ||
+        (viewer!.role === "ceo" &&
+          viewer!.business_unit_id === agent.business_unit_id &&
+          (agent.approval_level ?? 1) <= 2);
+
+      return {
+        id: row.id,
+        agentName: agent.name,
+        input: row.input ?? "",
+        createdAt: row.created_at,
+        canDecide,
+      };
+    });
+  }
+
   return (
     <div className="flex flex-col gap-6">
+      <ApprovalsInbox tasks={pendingTasks} />
+
       <section className="hud-panel rounded-lg p-6">
         <p className="hud-eyebrow text-xs">Tập đoàn</p>
         <h2 className="hud-title hud-glow-text mt-1 text-2xl font-bold text-white">

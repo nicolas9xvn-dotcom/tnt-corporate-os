@@ -6,6 +6,7 @@ import { runAgentTask } from "@/lib/actions/run-task";
 export function RunTaskForm({ agentId }: { agentId: string }) {
   const [input, setInput] = useState("");
   const [output, setOutput] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
@@ -13,6 +14,7 @@ export function RunTaskForm({ agentId }: { agentId: string }) {
     event.preventDefault();
     setError(null);
     setOutput(null);
+    setPendingApproval(false);
     setPending(true);
 
     const result = await runAgentTask(agentId, input);
@@ -20,6 +22,11 @@ export function RunTaskForm({ agentId }: { agentId: string }) {
     setPending(false);
     if (result.error) {
       setError(result.error);
+      return;
+    }
+    if (result.pendingApproval) {
+      setPendingApproval(true);
+      setInput("");
       return;
     }
     setOutput(result.output ?? "");
@@ -47,6 +54,12 @@ export function RunTaskForm({ agentId }: { agentId: string }) {
       </form>
 
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
+
+      {pendingApproval && (
+        <p className="mt-2 text-xs text-violet-300">
+          Agent này cần duyệt trước khi chạy — đã gửi vào mục &quot;Chờ duyệt&quot; ở đầu trang.
+        </p>
+      )}
 
       {output && (
         <div className="mt-2">

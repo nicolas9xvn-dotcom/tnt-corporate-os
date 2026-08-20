@@ -3,7 +3,13 @@
 
 export type UserRole = "chairman" | "ceo" | "staff";
 export type BusinessUnitStatus = "active" | "coming_soon";
-export type TaskStatus = "pending" | "in_progress" | "done" | "failed";
+export type TaskStatus =
+  | "pending"
+  | "in_progress"
+  | "approval_required"
+  | "done"
+  | "failed"
+  | "rejected";
 export type AgentLevel = "executive" | "director" | "manager" | "specialist";
 export type AgentStatus =
   | "active"

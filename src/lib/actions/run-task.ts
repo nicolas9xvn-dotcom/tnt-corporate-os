@@ -1,19 +1,20 @@
 "use server";
 
-import { GoogleGenAI } from "@google/genai";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { callGemini } from "@/lib/gemini";
 
 export interface RunTaskResult {
   error: string | null;
   output?: string;
+  pendingApproval?: boolean;
 }
 
-// Executes one task through a specific agent's real system prompt, via the
-// Gemini API free tier (Google AI Studio key — no billing required).
-// TODO(phase-2): approval_level (1/2/3) is not enforced here yet — every
-// task runs immediately regardless of the agent's level. Add a review/
-// approve step before this goes to level 2/3 agents for real.
+// Executes one task through a specific agent's real system prompt.
+// approval_level 1 (or unset — no agent has a value assigned yet, see
+// README) runs immediately. approval_level 2/3 files the task as
+// "approval_required" instead of calling Gemini — see approvals.ts for the
+// approve/reject step that actually runs it.
 export async function runAgentTask(agentId: string, input: string): Promise<RunTaskResult> {
   const trimmed = input.trim();
   if (!trimmed) return { error: "Nội dung công việc không được để trống." };
@@ -26,13 +27,9 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
   } = await supabase.auth.getUser();
   if (!user) return { error: "Bạn cần đăng nhập." };
 
-  if (!process.env.GEMINI_API_KEY) {
-    return { error: "Server chưa cấu hình GEMINI_API_KEY — xem README." };
-  }
-
   const { data: agent, error: agentError } = await supabase
     .from("agents")
-    .select("id, name, system_prompt")
+    .select("id, name, system_prompt, approval_level")
     .eq("id", agentId)
     .single();
 
@@ -41,13 +38,15 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
     return { error: "Agent này chưa có system prompt — chưa thể giao việc." };
   }
 
+  const needsApproval = (agent.approval_level ?? 1) >= 2;
+
   const { data: task, error: insertError } = await supabase
     .from("tasks")
     .insert({
       agent_id: agentId,
       created_by: user.id,
       title: trimmed.slice(0, 80),
-      status: "in_progress",
+      status: needsApproval ? "approval_required" : "in_progress",
       input: trimmed,
     })
     .select("id")
@@ -55,18 +54,13 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
 
   if (insertError) return { error: insertError.message };
 
-  try {
-    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
-      contents: trimmed,
-      config: {
-        systemInstruction: agent.system_prompt,
-        maxOutputTokens: 4096,
-      },
-    });
+  if (needsApproval) {
+    revalidatePath("/dashboard");
+    return { error: null, pendingApproval: true };
+  }
 
-    const output = response.text ?? "";
+  try {
+    const output = await callGemini(agent.system_prompt, trimmed);
 
     await supabase.from("tasks").update({ status: "done", output }).eq("id", task.id);
     await supabase.from("audit_log").insert({

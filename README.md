@@ -35,11 +35,22 @@ Gemini API" bên dưới.
   sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy. **Đã test thật trên production, hoạt động.**
   `GEMINI_API_KEY` đã cấu hình trên Vercel (free tier — key phải thuộc 1 project Google Cloud
   ở trạng thái "active"/còn free trial, không phải project cũ đã hết prepayment credits).
+- **Cơ chế duyệt (`approval_level`) đã xây xong** (`src/lib/actions/approvals.ts`,
+  `approvals-inbox.tsx`, `supabase/migrations/0005_task_approval_status.sql`): agent có
+  `approval_level >= 2` khi được giao việc sẽ tạo task ở trạng thái `approval_required` thay
+  vì chạy ngay — task xuất hiện trong mục "Chờ duyệt" ở đầu `/dashboard`. Level 2: chairman
+  hoặc đúng ceo của business unit đó mới duyệt/từ chối được; Level 3: chỉ chairman. Duyệt →
+  gọi Gemini thật và lưu kết quả; Từ chối → đánh dấu `rejected`, không gọi Gemini. **Hiện tại
+  cơ chế này chưa có tác dụng với agent nào** vì `approval_level` của toàn bộ 19 agent AME29
+  đang là `NULL` (mặc định = tự chạy, level 1) — founder chưa quyết định agent nào cần duyệt
+  ở level 2/3 nên chưa tự gán. Gán bằng cách sửa cột `approval_level` của agent đó trong
+  Supabase Table Editor (chưa có UI cho việc này, xem TODO).
+  **Cần chạy `supabase/migrations/0005_task_approval_status.sql` trên Supabase (SQL Editor)
+  trước khi dùng** — migration này thêm trạng thái `approval_required`/`rejected` vào
+  constraint của bảng `tasks`.
+- [x] ~~Chưa gate theo `approval_level`~~ (đã xây — xem trên).
 
 **TODO — chưa kết nối thật:**
-- [ ] **Chưa gate theo `approval_level`** — mọi agent chạy task ngay lập tức, kể cả
-      manager/executive lẽ ra cần người duyệt trước (Level 2/3 theo thiết kế). Founder chưa
-      quyết định approval_level cho từng agent nên bước duyệt chưa được xây.
 - [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
       không nhớ các lần giao việc trước) và panel chưa hiện lại lịch sử task cũ của agent.
 - [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase
