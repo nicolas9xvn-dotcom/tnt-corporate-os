@@ -83,10 +83,27 @@ Gemini API" bên dưới.
     hoạt động thật của agent đó, không phải một lần chuyển file thật giữa 2 bộ phận. **Cần
     chạy `supabase/migrations/0009_agent_status_realtime.sql`** trên Supabase (SQL Editor)
     để bật Realtime cho bảng `agents` + tạo hàm `set_agent_status`.
+- **Agent nhớ lại các lần giao việc trước** (`src/lib/actions/agent-history.ts`,
+  `gemini.ts`, `run-task.ts`, `approvals.ts`): mỗi lần giao việc, hệ thống lấy 8 task gần
+  nhất đã xong của đúng agent đó (nội dung giao + kết quả agent trả lời) và gửi lại cho
+  Gemini như lịch sử hội thoại, trước khi gửi yêu cầu mới. Nhờ vậy có thể chia một việc lớn
+  (VD: tổng hợp báo cáo 9 tháng) ra nhiều lần gửi — lần sau agent vẫn nhớ nội dung + kết quả
+  các lần trước, không phải giải thích lại từ đầu. **Cách hoạt động thật, cần hiểu rõ:** đây
+  là bộ nhớ dạng chữ (agent nhớ những gì nó đã đọc/kết luận), không phải file gốc được lưu
+  vĩnh viễn — nếu task đã xong (không phải đang chờ duyệt), file đính kèm gốc không được giữ
+  lại, chỉ có phần agent đã viết ra (thường là tóm tắt/trích số liệu từ file đó) được nhớ ở
+  lần sau. Muốn chắc chắn số liệu không bị sót, nên yêu cầu agent liệt kê rõ số liệu trong
+  câu trả lời từng lần thay vì chỉ nói "đã nhận file".
+- Sửa lỗi: ô "Giao việc" trước đây cho chọn tối đa 3 file × 4MB (~12MB) nhưng giới hạn dung
+  lượng request thật của server chỉ 8MB — chọn đủ 3 file lớn sẽ báo lỗi gửi thất bại. Đã thêm
+  giới hạn tổng dung lượng 5MB/lần gửi (`run-task-form.tsx`) để tránh việc này.
 
 **TODO — chưa kết nối thật:**
 - [ ] Chưa có cơ chế agent tự động chuyển việc/file cho agent khác (routing/workflow thật
       giữa các bộ phận) — hiện mỗi task chỉ chạy trong đúng 1 agent do người dùng chọn.
+- [ ] Panel agent chưa hiện lại danh sách lịch sử task cũ để xem trực tiếp (agent đã "nhớ"
+      khi trả lời, nhưng người dùng chưa xem lại được danh sách các lần giao việc trước đó
+      ngay trên UI — phải xem qua Supabase Table Editor, bảng `tasks`).
 - [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
       không nhớ các lần giao việc trước) và panel chưa hiện lại lịch sử task cũ của agent.
 - [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase

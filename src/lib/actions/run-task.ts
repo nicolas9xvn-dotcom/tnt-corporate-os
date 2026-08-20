@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { callGemini, type GeminiAttachment } from "@/lib/gemini";
+import { loadAgentHistory } from "./agent-history";
 import type { TaskAttachment } from "@/lib/types";
 
 export interface RunTaskResult {
@@ -105,7 +106,8 @@ export async function runAgentTask(
       mimeType: a.mimeType,
       base64: a.base64,
     }));
-    const output = await callGemini(agent.system_prompt, trimmed, geminiAttachments);
+    const history = await loadAgentHistory(supabase, agentId);
+    const output = await callGemini(agent.system_prompt, trimmed, geminiAttachments, history);
 
     await supabase.from("tasks").update({ status: "done", output }).eq("id", task.id);
     await supabase.from("audit_log").insert({

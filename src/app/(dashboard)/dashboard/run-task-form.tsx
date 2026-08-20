@@ -5,6 +5,10 @@ import { runAgentTask, type RunTaskAttachment } from "@/lib/actions/run-task";
 
 const MAX_FILES = 3;
 const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB per file
+// Combined raw size cap: base64 inflates by ~1.33x, and the server action
+// body limit is 8MB total (next.config.ts) — 5MB raw stays safely under
+// that once encoded, leaving room for the text fields too.
+const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
 
 function readAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -47,6 +51,11 @@ export function RunTaskForm({
     const tooBig = picked.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
       setError(`File "${tooBig.name}" quá 4MB — chọn file nhỏ hơn.`);
+      return;
+    }
+    const totalBytes = picked.reduce((sum, f) => sum + f.size, 0);
+    if (totalBytes > MAX_TOTAL_BYTES) {
+      setError(`Tổng dung lượng file vượt quá ${MAX_TOTAL_BYTES / (1024 * 1024)}MB — chọn ít file/nhỏ hơn.`);
       return;
     }
     setFiles(picked);
@@ -99,6 +108,10 @@ export function RunTaskForm({
   return (
     <div className="mt-3 border-t border-slate-800 pt-3">
       <p className="hud-eyebrow text-[0.65rem]">Giao việc</p>
+      <p className="mt-1 text-[0.7rem] text-slate-500">
+        Agent nhớ nội dung + kết quả của 8 lần giao việc gần nhất — có thể chia nhỏ việc lớn
+        ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước.
+      </p>
       <form onSubmit={handleSubmit} className="mt-1.5 flex flex-col gap-2">
         <textarea
           value={input}
