@@ -55,15 +55,19 @@ Gemini API" bên dưới.
 - [x] ~~Chưa gate theo `approval_level`~~ (đã xây và đã gán cho AME29 — xem trên).
 - **Ô "Giao việc" nhận được cả link website và file đính kèm, cho mọi agent kể cả agent
   cần duyệt** (`src/lib/gemini.ts`, `run-task.ts`, `approvals.ts`, `run-task-form.tsx`,
-  `supabase/migrations/0008_task_attachments.sql`): dán link vào ô nội dung → Gemini tự đọc
-  nội dung trang đó (tool `url_context` có sẵn của Gemini). Đính kèm được ảnh/PDF/txt/csv
-  (tối đa 3 file, mỗi file ≤ 4MB). Với agent tự chạy ngay, file gửi thẳng cho Gemini trong
-  bộ nhớ, không lưu đâu cả. Với agent cần duyệt (`approval_level >= 2`), file được upload
-  lên Supabase Storage bucket riêng `task-attachments` (private, có RLS theo đúng business
-  unit — xem migration 0008) ngay khi giao việc, giữ ở đó tới khi có người duyệt; lúc duyệt,
-  server tải file về và gửi cho Gemini, xong thì xoá file khỏi Storage (dù duyệt hay từ
-  chối, không giữ lại file thừa). **Cần chạy `supabase/migrations/0008_task_attachments.sql`
-  trên Supabase (SQL Editor) để tạo bucket + policy trước khi dùng.**
+  `src/lib/attachments.ts`, `supabase/migrations/0008_task_attachments.sql`,
+  `0010_task_draft_cleanup.sql`): dán link vào ô nội dung → Gemini tự đọc nội dung trang đó
+  (tool `url_context` có sẵn của Gemini). Đính kèm được ảnh/PDF/txt/csv, **tối đa 5 file, mỗi
+  file ≤ 20MB**. File được trình duyệt upload thẳng lên Supabase Storage (bucket riêng
+  `task-attachments`, private, RLS theo đúng business unit) — không đi qua server Next.js
+  nên không bị giới hạn dung lượng request của Vercel (~4.5MB cho Server Actions). Với agent
+  tự chạy ngay, server tải file từ Storage về, gửi cho Gemini, xong thì xoá khỏi Storage
+  ngay. Với agent cần duyệt (`approval_level >= 2`), file giữ nguyên trong Storage tới khi
+  có người duyệt, lúc đó mới tải về gửi Gemini rồi xoá. **Cần chạy 2 migration
+  `0008_task_attachments.sql` và `0010_task_draft_cleanup.sql`** trên Supabase (SQL Editor)
+  trước khi dùng. Nếu Supabase báo lỗi upload vượt hạn mức, hạn mức bucket có thể chỉnh ở
+  Supabase Dashboard → Storage → `task-attachments` → Settings (đã đặt sẵn 20MB/file qua
+  migration, khớp với giới hạn phía client).
 - **Giao diện "màn hình LED cảm ứng" + trạng thái hoạt động thật** (`src/lib/sound.ts`,
   `src/components/sound-effects.tsx`, `network-view.tsx`, `globals.css`,
   `supabase/migrations/0009_agent_status_realtime.sql`):
@@ -94,9 +98,11 @@ Gemini API" bên dưới.
   lại, chỉ có phần agent đã viết ra (thường là tóm tắt/trích số liệu từ file đó) được nhớ ở
   lần sau. Muốn chắc chắn số liệu không bị sót, nên yêu cầu agent liệt kê rõ số liệu trong
   câu trả lời từng lần thay vì chỉ nói "đã nhận file".
-- Sửa lỗi: ô "Giao việc" trước đây cho chọn tối đa 3 file × 4MB (~12MB) nhưng giới hạn dung
-  lượng request thật của server chỉ 8MB — chọn đủ 3 file lớn sẽ báo lỗi gửi thất bại. Đã thêm
-  giới hạn tổng dung lượng 5MB/lần gửi (`run-task-form.tsx`) để tránh việc này.
+- Sửa lỗi cũ + tăng giới hạn file: bản trước cho chọn tối đa 3 file × 4MB nhưng giới hạn
+  request thật của server chỉ 8MB (có thể còn thấp hơn do Vercel giới hạn cứng ~4.5MB cho
+  Server Actions) — chọn đủ file lớn dễ báo lỗi gửi thất bại. Đổi hẳn sang cách upload thẳng
+  lên Supabase Storage (xem mục "Giao việc" ở trên) để không còn bị giới hạn này — giờ 5 file
+  × 20MB mỗi lần.
 
 **TODO — chưa kết nối thật:**
 - [ ] Chưa có cơ chế agent tự động chuyển việc/file cho agent khác (routing/workflow thật

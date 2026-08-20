@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { callGemini, type GeminiAttachment } from "@/lib/gemini";
 import { loadAgentHistory } from "./agent-history";
+import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
 
 export interface ApprovalResult {
@@ -16,8 +17,6 @@ interface ApprovalAgent {
   approval_level: number | null;
   business_unit_id: string;
 }
-
-const ATTACHMENTS_BUCKET = "task-attachments";
 
 // Level 2: the chairman or the ceo of that agent's own business unit can
 // approve. Level 3: chairman only.

@@ -1,27 +1,13 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { runAgentTask, type RunTaskAttachment } from "@/lib/actions/run-task";
+import { runAgentTask, createTaskDraft, cancelTaskDraft } from "@/lib/actions/run-task";
+import { createClient } from "@/lib/supabase/client";
+import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
+import type { TaskAttachment } from "@/lib/types";
 
-const MAX_FILES = 3;
-const MAX_FILE_BYTES = 4 * 1024 * 1024; // 4MB per file
-// Combined raw size cap: base64 inflates by ~1.33x, and the server action
-// body limit is 8MB total (next.config.ts) — 5MB raw stays safely under
-// that once encoded, leaving room for the text fields too.
-const MAX_TOTAL_BYTES = 5 * 1024 * 1024;
-
-function readAsBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      // Strip the "data:<mime>;base64," prefix — Gemini wants raw base64.
-      resolve(result.slice(result.indexOf(",") + 1));
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
+const MAX_FILES = 5;
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB per file
 
 export function RunTaskForm({
   agentId,
@@ -35,10 +21,11 @@ export function RunTaskForm({
   const [output, setOutput] = useState<string | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const needsApproval = (approvalLevel ?? 1) >= 2;
+  const pending = phase !== "idle";
 
   function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
@@ -50,12 +37,7 @@ export function RunTaskForm({
     }
     const tooBig = picked.find((f) => f.size > MAX_FILE_BYTES);
     if (tooBig) {
-      setError(`File "${tooBig.name}" quá 4MB — chọn file nhỏ hơn.`);
-      return;
-    }
-    const totalBytes = picked.reduce((sum, f) => sum + f.size, 0);
-    if (totalBytes > MAX_TOTAL_BYTES) {
-      setError(`Tổng dung lượng file vượt quá ${MAX_TOTAL_BYTES / (1024 * 1024)}MB — chọn ít file/nhỏ hơn.`);
+      setError(`File "${tooBig.name}" quá ${MAX_FILE_BYTES / (1024 * 1024)}MB — chọn file nhỏ hơn.`);
       return;
     }
     setFiles(picked);
@@ -66,23 +48,49 @@ export function RunTaskForm({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function resetFiles() {
+    setFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setOutput(null);
     setPendingApproval(false);
-    setPending(true);
+
+    let draftTaskId: string | undefined;
 
     try {
-      const attachments: RunTaskAttachment[] = await Promise.all(
-        files.map(async (file) => ({
-          name: file.name,
-          mimeType: file.type || "application/octet-stream",
-          base64: await readAsBase64(file),
-        }))
-      );
+      const uploaded: TaskAttachment[] = [];
 
-      const result = await runAgentTask(agentId, input, attachments);
+      if (files.length > 0) {
+        setPhase("uploading");
+        const draft = await createTaskDraft(agentId);
+        if (draft.error || !draft.taskId) {
+          setError(draft.error ?? "Không tạo được task.");
+          return;
+        }
+        draftTaskId = draft.taskId;
+
+        const supabase = createClient();
+        for (const file of files) {
+          const path = `${draft.taskId}/${sanitizeFileName(file.name)}`;
+          const mimeType = file.type || "application/octet-stream";
+          const { error: uploadError } = await supabase.storage
+            .from(ATTACHMENTS_BUCKET)
+            .upload(path, file, { contentType: mimeType, upsert: true });
+          if (uploadError) {
+            setError(`Upload file "${file.name}" thất bại: ${uploadError.message}`);
+            await cancelTaskDraft(draft.taskId);
+            return;
+          }
+          uploaded.push({ path, name: file.name, mimeType });
+        }
+      }
+
+      setPhase("processing");
+      const result = await runAgentTask(agentId, input, uploaded, draftTaskId);
 
       if (result.error) {
         setError(result.error);
@@ -91,17 +99,16 @@ export function RunTaskForm({
       if (result.pendingApproval) {
         setPendingApproval(true);
         setInput("");
-        setFiles([]);
-        if (fileInputRef.current) fileInputRef.current.value = "";
+        resetFiles();
         return;
       }
       setOutput(result.output ?? "");
-      setFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      resetFiles();
     } catch {
-      setError("Không đọc được file đính kèm — thử lại.");
+      setError("Có lỗi khi xử lý file — thử lại.");
+      if (draftTaskId) await cancelTaskDraft(draftTaskId);
     } finally {
-      setPending(false);
+      setPhase("idle");
     }
   }
 
@@ -163,7 +170,7 @@ export function RunTaskForm({
           disabled={pending || (!input.trim() && files.length === 0)}
           className="self-start rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {pending ? "Agent đang xử lý..." : "Gửi"}
+          {phase === "uploading" ? "Đang tải file lên..." : phase === "processing" ? "Agent đang xử lý..." : "Gửi"}
         </button>
       </form>
 
