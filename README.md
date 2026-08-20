@@ -137,6 +137,28 @@ Gemini API" bên dưới.
     trên production (sandbox này không gọi được ra ngoài internet để test trực tiếp). Bạn
     thử với 1 việc đơn giản giao cho CEO AME29 trước, nếu gặp lỗi gửi lại nguyên văn để tôi
     sửa.
+- **Model dự phòng khi Gemini hết quota miễn phí trong ngày** (`src/lib/actions/text-fallback.ts`,
+  `agent-runner.ts`): agent **không có cấp dưới** (specialist — TikTok Agent, Kế toán, Luật
+  sư Thuế...) sẽ tự động thử DeepSeek → Grok → OpenAI theo thứ tự đó nếu Gemini báo lỗi hết
+  quota (429). Chỉ thử model dự phòng khi đúng là lỗi hết quota — lỗi khác (prompt sai, bug
+  thật) vẫn báo lỗi bình thường, không âm thầm chuyển sang model khác. Agent **có cấp dưới**
+  (CEO, các Manager...) chưa có dự phòng — tính năng giao việc lại chỉ code cho Gemini, xem
+  mục trên.
+  - **Cần tài khoản + API key riêng cho từng model** (không dùng chung với `GEMINI_API_KEY`),
+    đều **mất phí thật**: DeepSeek tại platform.deepseek.com, Grok (xAI) tại console.x.ai,
+    OpenAI tại platform.openai.com. Thêm vào Vercel Environment Variables:
+    `DEEPSEEK_API_KEY`, `GROK_API_KEY`, `OPENAI_API_KEY` — thiếu cái nào thì bỏ qua cái đó,
+    không lỗi gì cả (mặc định vẫn chạy Gemini-only như trước nếu không thêm gì thêm).
+  - **Tên model trong code là phỏng đoán, chưa xác minh được thật** (`deepseek-chat`,
+    `grok-4`, `gpt-4o-mini`) — y hệt tình huống từng gặp với Gemini (`gemini-2.5-flash` bị
+    ngừng, phải đổi sang `gemini-3.6-flash`) vì các hãng hay đổi tên/ra bản mới, và sandbox
+    này không gọi ra ngoài để kiểm tra tên mới nhất được. Nếu 1 model báo lỗi "not found" hay
+    tương tự, sửa qua biến môi trường `DEEPSEEK_MODEL` / `GROK_MODEL` / `OPENAI_MODEL` (không
+    cần sửa code) — đúng tên lấy từ trang tài liệu/dashboard hiện tại của hãng đó.
+  - File đính kèm: DeepSeek không đọc được file nào (chỉ nhận chữ); Grok/OpenAI đọc được
+    ảnh, không đọc được PDF/txt/csv khi chạy qua model dự phòng (chỉ Gemini đọc được đủ loại
+    file như thiết kế ban đầu).
+  - Không cần migration SQL nào cho phần này — chỉ cần thêm biến môi trường.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

@@ -1,6 +1,7 @@
 import { GoogleGenAI, type FunctionCall, type FunctionResponse } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { loadAgentHistory } from "./agent-history";
+import { callFallbackProviders, isQuotaError } from "./text-fallback";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
@@ -139,11 +140,24 @@ export async function runAgentConversation(params: {
     let finalText = "";
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-      const response = await ai.models.generateContent({
-        model: MODEL,
-        contents,
-        config: { systemInstruction: agent.system_prompt, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
-      });
+      let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
+      try {
+        response = await ai.models.generateContent({
+          model: MODEL,
+          contents,
+          config: { systemInstruction: agent.system_prompt, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
+        });
+      } catch (err) {
+        // Only the leaf (non-delegating) path can fall back — a delegating
+        // agent needs Gemini's function calling, which the fallback
+        // providers below don't implement (see text-fallback.ts).
+        if (!canDelegate && isQuotaError(err)) {
+          const fallback = await callFallbackProviders(agent.system_prompt, history, input, attachments);
+          finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
+          break;
+        }
+        throw err;
+      }
 
       const calls = response.functionCalls ?? [];
       if (calls.length === 0) {
