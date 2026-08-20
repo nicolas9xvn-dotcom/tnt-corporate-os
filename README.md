@@ -2,7 +2,7 @@
 
 Next.js (App Router, TypeScript, Tailwind) + Supabase (Auth + Postgres) + Gemini API,
 deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./docs/tnt-corporate-os-kien-truc.md)
-đề xuất Claude API — đổi sang Gemini (`gemini-2.5-flash`) vì có gói miễn phí, xem "Kết nối
+đề xuất Claude API — đổi sang Gemini (`gemini-3.6-flash`) vì có gói miễn phí, xem "Kết nối
 Gemini API" bên dưới.
 
 ## Trạng thái hiện tại
@@ -29,7 +29,7 @@ Gemini API" bên dưới.
   agent cấp `executive` (không thuộc phòng ban) đứng giữa, các agent khác toả ra theo đúng
   chuỗi `reports_to`, không còn liệt kê phẳng theo phòng ban.
 - **Agent chạy được task thật qua Gemini API** (`src/lib/actions/run-task.ts`): bấm vào 1
-  agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `gemini-2.5-flash` với đúng
+  agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `gemini-3.6-flash` với đúng
   `system_prompt` của agent đó → lưu kết quả thật vào bảng `tasks` + `audit_log`. Chỉ hoạt
   động với agent đã có `system_prompt` (15/19 agent AME29); 4 role quản lý còn thiếu prompt
   sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy.

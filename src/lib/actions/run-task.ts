@@ -58,7 +58,7 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: "gemini-3.6-flash",
       contents: trimmed,
       config: {
         systemInstruction: agent.system_prompt,
