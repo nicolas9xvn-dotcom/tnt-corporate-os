@@ -120,4 +120,12 @@ export interface DepartmentWithAgents extends Department {
 
 export interface BusinessUnitWithTree extends BusinessUnit {
   departments: DepartmentWithAgents[];
+  // Every agent in this business unit, flat (including department-less
+  // executives) — used to render the reports_to org chart.
+  agents: Agent[];
+}
+
+// A node in the reports_to org chart (see org-chart.tsx).
+export interface AgentTreeNode extends Agent {
+  children: AgentTreeNode[];
 }

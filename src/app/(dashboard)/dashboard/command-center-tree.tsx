@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { BusinessUnitWithTree, UserRole } from "@/lib/types";
 import { CreateAgentForm } from "./create-agent-form";
 import { CreateDepartmentForm } from "./create-department-form";
+import { OrgChart } from "./org-chart";
 
 function StatusBadge({ status }: { status: BusinessUnitWithTree["status"] }) {
   const isActive = status === "active";
@@ -82,7 +83,8 @@ function BusinessUnitCard({
   canManage: boolean;
 }) {
   const [open, setOpen] = useState(true);
-  const totalAgents = businessUnit.departments.reduce((sum, d) => sum + d.agents.length, 0);
+  const [manageOpen, setManageOpen] = useState(false);
+  const totalAgents = businessUnit.agents.length;
 
   return (
     <div className="rounded-lg border border-slate-800 bg-slate-900/40">
@@ -106,15 +108,33 @@ function BusinessUnitCard({
       </button>
 
       {open && (
-        <div className="flex flex-col gap-3 border-t border-slate-800 px-5 py-4">
-          {businessUnit.departments.length === 0 ? (
-            <p className="text-sm text-slate-600">Chưa có phòng ban nào cho công ty con này.</p>
-          ) : (
-            businessUnit.departments.map((dept) => (
-              <DepartmentBlock key={dept.id} department={dept} canManage={canManage} />
-            ))
+        <div className="flex flex-col gap-4 border-t border-slate-800 px-5 py-4">
+          <OrgChart agents={businessUnit.agents} departments={businessUnit.departments} />
+
+          {canManage && (
+            <div className="border-t border-slate-800/80 pt-3">
+              <button
+                type="button"
+                onClick={() => setManageOpen((v) => !v)}
+                className="text-xs font-medium text-slate-500 transition hover:text-sky-300"
+              >
+                {manageOpen ? "▾" : "▸"} Quản lý phòng ban &amp; agent
+              </button>
+
+              {manageOpen && (
+                <div className="mt-3 flex flex-col gap-3">
+                  {businessUnit.departments.length === 0 ? (
+                    <p className="text-sm text-slate-600">Chưa có phòng ban nào cho công ty con này.</p>
+                  ) : (
+                    businessUnit.departments.map((dept) => (
+                      <DepartmentBlock key={dept.id} department={dept} canManage={canManage} />
+                    ))
+                  )}
+                  <CreateDepartmentForm businessUnitId={businessUnit.id} />
+                </div>
+              )}
+            </div>
           )}
-          {canManage && <CreateDepartmentForm businessUnitId={businessUnit.id} />}
         </div>
       )}
     </div>

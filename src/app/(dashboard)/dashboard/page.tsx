@@ -24,6 +24,8 @@ function buildTree(
         ...dept,
         agents: agents.filter((agent) => agent.department_id === dept.id),
       })),
+    // Flat list, including department-less executives — used by the org chart.
+    agents: agents.filter((agent) => agent.business_unit_id === bu.id),
   }));
 }
 
