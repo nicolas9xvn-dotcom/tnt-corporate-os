@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { callGemini, type GeminiAttachment } from "@/lib/gemini";
-import { loadAgentHistory } from "./agent-history";
+import type { GeminiAttachment } from "@/lib/gemini";
+import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST } from "./agent-runner";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
 
@@ -65,8 +65,6 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
   }
   if (!agent.system_prompt) return { error: "Agent chưa có system prompt." };
 
-  await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "running" });
-
   try {
     const geminiAttachments: GeminiAttachment[] = [];
     if (attachments && attachments.length > 0) {
@@ -82,26 +80,30 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
       }
     }
 
-    const history = await loadAgentHistory(supabase, task.agent_id);
-    const output = await callGemini(agent.system_prompt, task.input ?? "", geminiAttachments, history);
+    const result = await runAgentConversation({
+      supabase,
+      userId: user.id,
+      agent: { id: task.agent_id, name: agent.name, system_prompt: agent.system_prompt },
+      input: task.input ?? "",
+      attachments: geminiAttachments,
+      taskId,
+      depth: 0,
+      budget: { remaining: MAX_DELEGATIONS_PER_REQUEST },
+    });
 
-    await supabase.from("tasks").update({ status: "done", output }).eq("id", taskId);
     await supabase.from("audit_log").insert({
       actor: user.id,
       action: "approve_task",
       target: agent.name,
       input: task.input,
-      output,
+      output: result.output,
     });
     await cleanupAttachments(supabase, attachments);
-    await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "idle" });
 
     revalidatePath("/dashboard");
     return { error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
-    await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", taskId);
-    await supabase.rpc("set_agent_status", { p_agent_id: task.agent_id, p_status: "error" });
     return { error: message };
   }
 }

@@ -4,6 +4,7 @@ import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { runAgentTask, createTaskDraft, cancelTaskDraft } from "@/lib/actions/run-task";
 import { createClient } from "@/lib/supabase/client";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
+import type { DelegatedResult } from "@/lib/actions/agent-runner";
 import type { TaskAttachment } from "@/lib/types";
 
 const MAX_FILES = 5;
@@ -19,6 +20,7 @@ export function RunTaskForm({
   const [input, setInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [output, setOutput] = useState<string | null>(null);
+  const [delegatedTo, setDelegatedTo] = useState<DelegatedResult[]>([]);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
@@ -57,6 +59,7 @@ export function RunTaskForm({
     event.preventDefault();
     setError(null);
     setOutput(null);
+    setDelegatedTo([]);
     setPendingApproval(false);
 
     let draftTaskId: string | undefined;
@@ -103,6 +106,7 @@ export function RunTaskForm({
         return;
       }
       setOutput(result.output ?? "");
+      setDelegatedTo(result.delegatedTo ?? []);
       resetFiles();
     } catch {
       setError("Có lỗi khi xử lý file — thử lại.");
@@ -117,7 +121,8 @@ export function RunTaskForm({
       <p className="hud-eyebrow text-[0.65rem]">Giao việc</p>
       <p className="mt-1 text-[0.7rem] text-slate-500">
         Agent nhớ nội dung + kết quả của 20 lần giao việc gần nhất — có thể chia nhỏ việc lớn
-        ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước.
+        ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước. Nếu agent có cấp dưới, agent có
+        thể tự giao lại việc phù hợp cho đúng người rồi tổng hợp kết quả trả lời bạn.
       </p>
       <form onSubmit={handleSubmit} className="mt-1.5 flex flex-col gap-2">
         <textarea
@@ -188,6 +193,23 @@ export function RunTaskForm({
           <p className="mt-1 whitespace-pre-line rounded-md border border-cyan-900/40 bg-slate-950/60 p-2.5 text-sm leading-relaxed text-slate-200">
             {output}
           </p>
+        </div>
+      )}
+
+      {delegatedTo.length > 0 && (
+        <div className="mt-2">
+          <p className="hud-eyebrow text-[0.65rem]">Đã giao lại cho</p>
+          <ul className="mt-1 flex flex-col gap-1.5">
+            {delegatedTo.map((d, i) => (
+              <li
+                key={`${d.agentName}-${i}`}
+                className="rounded-md border border-violet-900/40 bg-slate-950/60 p-2.5 text-xs leading-relaxed"
+              >
+                <span className="font-semibold text-violet-300">{d.agentName}</span>
+                <p className="mt-1 whitespace-pre-line text-slate-300">{d.output}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

@@ -88,6 +88,10 @@ export interface Task {
   input: string | null;
   output: string | null;
   attachments: TaskAttachment[] | null;
+  // Set when this task was created by another agent delegating part of its
+  // own task down the org chart (see agent-runner.ts) — points at that
+  // parent task, null for a task the user created directly.
+  parent_task_id: string | null;
   created_at: string;
 }
 

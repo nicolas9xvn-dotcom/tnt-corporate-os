@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { callGemini, type GeminiAttachment } from "@/lib/gemini";
-import { loadAgentHistory } from "./agent-history";
+import type { GeminiAttachment } from "@/lib/gemini";
+import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST, type DelegatedResult } from "./agent-runner";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
 
@@ -11,6 +11,7 @@ export interface RunTaskResult {
   error: string | null;
   output?: string;
   pendingApproval?: boolean;
+  delegatedTo?: DelegatedResult[];
 }
 
 export interface DraftResult {
@@ -59,10 +60,12 @@ export async function cancelTaskDraft(taskId: string): Promise<void> {
   await supabase.from("tasks").delete().eq("id", taskId).eq("status", "pending");
 }
 
-// Runs a task through a specific agent's real system prompt. `attachments`
-// (if any) must already be sitting in the "task-attachments" Storage bucket
-// — pass `draftTaskId` from createTaskDraft() when there are files, or omit
-// both for a text-only task (no draft/upload round-trip needed then).
+// Runs a task through a specific agent's real system prompt — including
+// letting that agent delegate part of the work down the org chart (see
+// agent-runner.ts) if it has direct reports. `attachments` (if any) must
+// already be sitting in the "task-attachments" Storage bucket — pass
+// `draftTaskId` from createTaskDraft() when there are files, or omit both
+// for a text-only task (no draft/upload round-trip needed then).
 export async function runAgentTask(
   agentId: string,
   input: string,
@@ -127,8 +130,6 @@ export async function runAgentTask(
     return { error: null, pendingApproval: true };
   }
 
-  await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "running" });
-
   try {
     const geminiAttachments: GeminiAttachment[] = [];
     for (const file of attachments) {
@@ -142,28 +143,25 @@ export async function runAgentTask(
       geminiAttachments.push({ mimeType: file.mimeType, base64 });
     }
 
-    const history = await loadAgentHistory(supabase, agentId);
-    const output = await callGemini(agent.system_prompt, trimmed, geminiAttachments, history);
-
-    await supabase.from("tasks").update({ status: "done", output }).eq("id", taskId);
-    await supabase.from("audit_log").insert({
-      actor: user.id,
-      action: "run_task",
-      target: agent.name,
-      input: storedInput,
-      output,
+    const result = await runAgentConversation({
+      supabase,
+      userId: user.id,
+      agent: { id: agent.id, name: agent.name, system_prompt: agent.system_prompt },
+      input: trimmed,
+      attachments: geminiAttachments,
+      taskId,
+      depth: 0,
+      budget: { remaining: MAX_DELEGATIONS_PER_REQUEST },
     });
+
     if (attachments.length > 0) {
       await supabase.storage.from(ATTACHMENTS_BUCKET).remove(attachments.map((a) => a.path));
     }
-    await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "idle" });
 
     revalidatePath("/dashboard");
-    return { error: null, output };
+    return { error: null, output: result.output, delegatedTo: result.delegatedTo };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
-    await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", taskId);
-    await supabase.rpc("set_agent_status", { p_agent_id: agentId, p_status: "error" });
     return { error: message };
   }
 }

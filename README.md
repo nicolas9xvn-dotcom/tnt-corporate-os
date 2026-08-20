@@ -108,10 +108,40 @@ Gemini API" bên dưới.
   Server Actions) — chọn đủ file lớn dễ báo lỗi gửi thất bại. Đổi hẳn sang cách upload thẳng
   lên Supabase Storage (xem mục "Giao việc" ở trên) để không còn bị giới hạn này — giờ 5 file
   × 20MB mỗi lần.
+- **Agent tự giao lại việc cho đúng cấp dưới (delegation thật, không phải hiệu ứng)**
+  (`src/lib/actions/agent-runner.ts`, `run-task.ts`, `approvals.ts`,
+  `supabase/migrations/0011_task_delegation.sql`): khi giao việc cho 1 agent có cấp dưới
+  (VD: CEO AME29), Gemini có thêm 1 công cụ tên `delegate_to_agent` — chỉ gọi được tới đúng
+  những agent là cấp dưới trực tiếp thật của agent đó (lấy từ `reports_to` thật, Gemini
+  không tự bịa tên agent). Khi Gemini gọi công cụ này, hệ thống tạo 1 task **thật** cho agent
+  cấp dưới, chạy bằng đúng system prompt + trí nhớ riêng của agent đó, rồi trả kết quả về —
+  agent cấp trên đọc kết quả và viết câu trả lời cuối cùng (có thể tổng hợp từ nhiều agent).
+  Agent cấp dưới nhận việc, nếu bản thân nó cũng có cấp dưới, lại tiếp tục giao được nữa —
+  chuỗi giao việc đi tới tận specialist nếu cần. Kết quả từng agent được giao lại hiện ra
+  trong ô "Đã giao lại cho" ngay dưới kết quả chính, và mỗi lần giao lại là **1 dòng thật**
+  trong bảng `tasks` (có `parent_task_id` trỏ về task gốc) — không giấu, không tóm tắt giả.
+  **Giới hạn cố ý đặt ra, cần hiểu rõ trước khi dùng nhiều:**
+  - Tối đa 4 tầng giao việc (khớp với 4 cấp: executive → director → manager → specialist)
+    và tối đa 6 lượt giao việc/1 lần bấm "Gửi" (`MAX_DELEGATION_DEPTH`,
+    `MAX_DELEGATIONS_PER_REQUEST` trong `agent-runner.ts`) — không phải giới hạn kỹ thuật,
+    mà để tránh 1 lần giao việc gọi Gemini quá nhiều lần (**mỗi lượt giao lại là 1-2 lần gọi
+    Gemini thật** — dây chuyền càng dài/rộng càng tốn quota, dễ chạm giới hạn free tier
+    nhanh hơn so với giao việc trực tiếp cho 1 agent).
+  - Agent nào có khả năng giao việc lại (có cấp dưới) sẽ **tạm thời không đọc được link
+    website** ở lượt giao việc đó — API Gemini không cho dùng đồng thời công cụ tự chọn
+    (`delegate_to_agent`) và công cụ đọc trang web (`url_context`) trong cùng 1 lần gọi.
+    Agent không có cấp dưới (specialist) vẫn đọc link bình thường như trước.
+  - **Cần chạy `supabase/migrations/0011_task_delegation.sql`** trên Supabase (SQL Editor)
+    trước khi dùng.
+  - Đây là tính năng mới, dùng function calling nhiều vòng của Gemini — chưa test được thật
+    trên production (sandbox này không gọi được ra ngoài internet để test trực tiếp). Bạn
+    thử với 1 việc đơn giản giao cho CEO AME29 trước, nếu gặp lỗi gửi lại nguyên văn để tôi
+    sửa.
 
 **TODO — chưa kết nối thật:**
-- [ ] Chưa có cơ chế agent tự động chuyển việc/file cho agent khác (routing/workflow thật
-      giữa các bộ phận) — hiện mỗi task chỉ chạy trong đúng 1 agent do người dùng chọn.
+- [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
+      "Agent tự giao lại việc" ở trên; file đính kèm gốc thì chưa chuyển theo, chỉ có nội
+      dung chữ được giao lại).
 - [ ] Panel agent chưa hiện lại danh sách lịch sử task cũ để xem trực tiếp (agent đã "nhớ"
       khi trả lời, nhưng người dùng chưa xem lại được danh sách các lần giao việc trước đó
       ngay trên UI — phải xem qua Supabase Table Editor, bảng `tasks`).
