@@ -17,6 +17,7 @@ import "@xyflow/react/dist/style.css";
 import type { Agent, AgentLevel, AgentStatus, AgentTreeNode, Department } from "@/lib/types";
 import { buildAgentTree, layoutRadialTree, pickDirection, type RadialPosition } from "@/lib/org-tree";
 import { DepartmentIcon } from "./department-icon";
+import { RunTaskForm } from "./run-task-form";
 
 const LEVEL_LABEL: Record<AgentLevel, string> = {
   executive: "Executive",
@@ -180,14 +181,19 @@ function AgentDetailPanel({
       )}
 
       {node.system_prompt ? (
-        <div className="mt-3">
-          <p className="hud-eyebrow text-[0.65rem]">System prompt</p>
-          <p className="mt-1 whitespace-pre-line rounded-md border border-slate-800 bg-slate-950/60 p-2.5 text-xs leading-relaxed text-slate-400">
-            {node.system_prompt}
-          </p>
-        </div>
+        <>
+          <div className="mt-3">
+            <p className="hud-eyebrow text-[0.65rem]">System prompt</p>
+            <p className="mt-1 whitespace-pre-line rounded-md border border-slate-800 bg-slate-950/60 p-2.5 text-xs leading-relaxed text-slate-400">
+              {node.system_prompt}
+            </p>
+          </div>
+          <RunTaskForm agentId={node.id} />
+        </>
       ) : (
-        <p className="mt-3 text-xs italic text-amber-400/80">Chưa có system prompt cho agent này.</p>
+        <p className="mt-3 text-xs italic text-amber-400/80">
+          Chưa có system prompt cho agent này — chưa thể giao việc.
+        </p>
       )}
     </div>
   );

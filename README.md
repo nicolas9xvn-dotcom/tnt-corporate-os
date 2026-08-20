@@ -22,34 +22,39 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
   Executive vào bảng `agents` (`level`, `status`, `approval_level`, `responsibilities`,
   `tools`, `kpi`, `escalation_note`, `business_unit_id` trực tiếp) và seed đúng cấu trúc
   AME29 thật (6 phòng ban, 19 agent — 15 có system prompt thật do founder cung cấp, 4 role
-  quản lý trung gian còn thiếu prompt). **Chưa chạy trên Supabase thật** — xem hướng dẫn
-  "Kết nối Supabase" bên dưới, chạy nối tiếp theo đúng số thứ tự file.
+  quản lý trung gian còn thiếu prompt).
+- CEO Command Center giờ vẽ đúng sơ đồ tổ chức (`network-view.tsx`, dùng `@xyflow/react`):
+  agent cấp `executive` (không thuộc phòng ban) đứng giữa, các agent khác toả ra theo đúng
+  chuỗi `reports_to`, không còn liệt kê phẳng theo phòng ban.
+- **Agent chạy được task thật qua Claude API** (`src/lib/actions/run-task.ts`): bấm vào 1
+  agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `claude-opus-5` với đúng
+  `system_prompt` của agent đó → lưu kết quả thật vào bảng `tasks` + `audit_log`. Chỉ hoạt
+  động với agent đã có `system_prompt` (15/19 agent AME29); 4 role quản lý còn thiếu prompt
+  sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy.
 
 **TODO — chưa kết nối thật:**
-- [ ] Chưa gọi Claude API ở đâu cả (chưa có route xử lý agent task) — Phase 1 chỉ có
-      cấu trúc dữ liệu + hiển thị, phần "agent thực thi task qua Claude API" là bước kế tiếp.
-      Trường `system_prompt` đã lưu được nhưng chưa dùng để gọi model.
+- [ ] Chưa cấu hình `ANTHROPIC_API_KEY` trên Vercel — xem "Kết nối Claude API" bên dưới.
+      Thiếu biến này thì nút "Giao việc" báo lỗi rõ ràng, không crash.
+- [ ] **Chưa gate theo `approval_level`** — mọi agent chạy task ngay lập tức, kể cả
+      manager/executive lẽ ra cần người duyệt trước (Level 2/3 theo thiết kế). Founder chưa
+      quyết định approval_level cho từng agent nên bước duyệt chưa được xây.
+- [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
+      không nhớ các lần giao việc trước) và panel chưa hiện lại lịch sử task cũ của agent.
 - [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase
       Table Editor trong lúc chưa có UI quản trị đầy đủ.
 - [ ] Chưa có UI gán role/business_unit_id cho user mới (mặc định mọi user mới là `staff`,
       không thuộc business unit nào — chairman phải tự sửa trong Supabase Table Editor).
-- [ ] **CEO Command Center chưa hiển thị agent cấp `executive`** (agent không thuộc
-      phòng ban nào, ví dụ CEO AME29) — cây hiện tại chỉ nhóm agent theo department, nên
-      executive sẽ "vô hình" trên UI dù đã có thật trong DB. Cần vẽ lại tree để có 1 tầng
-      riêng cho executive trước department, và hiển thị chuỗi `reports_to` thay vì liệt kê
-      agent phẳng trong từng phòng ban.
 - [ ] 4 role quản lý mới (Finance Manager, Admin & Legal Manager, Marketing Director,
       Brand & Design Manager) được tạo làm tầng trung gian nhưng **chưa có system prompt**
-      — founder cung cấp sau, hiện để `NULL`.
-- [ ] `status/approval_level/responsibilities/tools/kpi/escalation_note` đã có cột trong
-      schema nhưng chưa điền giá trị thật cho từng agent (trừ `status` mặc định `idle`) —
-      cần founder quyết định approval_level/KPI cho từng agent, không tự suy đoán.
+      — founder cung cấp sau, hiện để `NULL` (không giao việc được cho tới lúc đó).
+- [ ] `approval_level/responsibilities/tools/kpi/escalation_note` đã có cột trong schema
+      nhưng chưa điền giá trị thật cho từng agent — cần founder quyết định, không tự suy đoán.
 - [ ] Chưa có bảng `workflows`/`approvals` — Google Review workflow và cơ chế approval
-      1/2/3 mới dừng ở thiết kế, chưa có schema thật (xem migration tiếp theo).
-- [ ] Knowledge Base / Task / Report / Decision Log: bảng + RLS đã có, nhưng chưa có
-      màn hình để tạo/xem — chỉ mới có ở tầng database.
-- [ ] Phase 2 trở đi (Executive Board, Red Team, Audit Log UI, Network View, tích hợp
-      Google Maps / kế toán / n8n): chưa làm.
+      1/2/3 mới dừng ở thiết kế, chưa có schema thật.
+- [ ] Knowledge Base / Report / Decision Log: bảng + RLS đã có, nhưng chưa có màn hình để
+      tạo/xem — chỉ mới có ở tầng database (Task giờ đã hoạt động thật, xem trên).
+- [ ] Phase 2 trở đi (Executive Board, Red Team, Audit Log UI, tích hợp Google Maps / kế
+      toán / n8n): chưa làm.
 
 ## Kết nối Supabase
 
@@ -67,6 +72,18 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
    Table Editor) để có toàn quyền trên Command Center.
 6. Thêm `business_units` / `departments` / `agents` qua Table Editor hoặc SQL — chưa có UI
    quản trị ở Phase 1 (xem TODO).
+
+## Kết nối Claude API
+
+Để nút "Giao việc" trong CEO Command Center hoạt động thật:
+
+1. Vào [console.anthropic.com](https://console.anthropic.com) → **API Keys** → tạo key mới.
+2. **Không dán key vào chat** — thêm trực tiếp vào Environment Variables trên Vercel (Project
+   Settings → Environment Variables): tên biến `ANTHROPIC_API_KEY`, giá trị là key vừa tạo.
+   Đây là secret thật (khác với Supabase anon key) nên không nên chia sẻ qua chat.
+3. Redeploy lại project trên Vercel để biến môi trường mới có hiệu lực.
+4. Nếu muốn chạy local, thêm dòng `ANTHROPIC_API_KEY=...` vào `.env.local` (đã có sẵn trong
+   `.env.local.example`, file này không bị commit).
 
 ## Chạy local
 
