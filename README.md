@@ -23,16 +23,19 @@ Gemini API" bên dưới.
 - `supabase/migrations/0003_agent_hierarchy.sql` + `0004_seed_ame29_agents.sql`: thêm tầng
   Executive vào bảng `agents` (`level`, `status`, `approval_level`, `responsibilities`,
   `tools`, `kpi`, `escalation_note`, `business_unit_id` trực tiếp) và seed đúng cấu trúc
-  AME29 thật (6 phòng ban, 19 agent — 15 có system prompt thật do founder cung cấp, 4 role
-  quản lý trung gian còn thiếu prompt).
+  AME29 thật (6 phòng ban, 19 agent). `supabase/migrations/0007_manager_prompts.sql`: bổ
+  sung system prompt thật cho 4 role quản lý trung gian còn thiếu (Finance Manager,
+  Admin & Legal Manager, Marketing Director, Brand & Design Manager) — **cả 19/19 agent
+  AME29 giờ đã có system prompt thật**, không agent nào còn để trống.
 - CEO Command Center giờ vẽ đúng sơ đồ tổ chức (`network-view.tsx`, dùng `@xyflow/react`):
   agent cấp `executive` (không thuộc phòng ban) đứng giữa, các agent khác toả ra theo đúng
   chuỗi `reports_to`, không còn liệt kê phẳng theo phòng ban.
 - **Agent chạy được task thật qua Gemini API** (`src/lib/actions/run-task.ts`): bấm vào 1
   agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `gemini-3.6-flash` với đúng
   `system_prompt` của agent đó → lưu kết quả thật vào bảng `tasks` + `audit_log`. Chỉ hoạt
-  động với agent đã có `system_prompt` (15/19 agent AME29); 4 role quản lý còn thiếu prompt
-  sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy. **Đã test thật trên production, hoạt động.**
+  động với agent đã có `system_prompt` (19/19 agent AME29, sau khi chạy migration `0007`
+  — trước đó agent chưa có prompt sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy).
+  **Đã test thật trên production, hoạt động.**
   `GEMINI_API_KEY` đã cấu hình trên Vercel (free tier — key phải thuộc 1 project Google Cloud
   ở trạng thái "active"/còn free trial, không phải project cũ đã hết prepayment credits).
 - **Cơ chế duyệt (`approval_level`) đã xây xong và đã gán cho AME29**
@@ -58,9 +61,8 @@ Gemini API" bên dưới.
       Table Editor trong lúc chưa có UI quản trị đầy đủ.
 - [ ] Chưa có UI gán role/business_unit_id cho user mới (mặc định mọi user mới là `staff`,
       không thuộc business unit nào — chairman phải tự sửa trong Supabase Table Editor).
-- [ ] 4 role quản lý mới (Finance Manager, Admin & Legal Manager, Marketing Director,
-      Brand & Design Manager) được tạo làm tầng trung gian nhưng **chưa có system prompt**
-      — founder cung cấp sau, hiện để `NULL` (không giao việc được cho tới lúc đó).
+- [x] ~~4 role quản lý mới chưa có system prompt~~ (đã điền — xem `0007_manager_prompts.sql`
+      ở trên).
 - [ ] `responsibilities/tools/kpi/escalation_note` đã có cột trong schema nhưng chưa điền
       giá trị thật cho từng agent — cần founder quyết định, không tự suy đoán. (`approval_level`
       đã điền cho AME29 — xem trên.)
