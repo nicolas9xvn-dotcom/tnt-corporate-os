@@ -1,6 +1,6 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
@@ -9,7 +9,8 @@ export interface RunTaskResult {
   output?: string;
 }
 
-// Executes one task through a specific agent's real system prompt.
+// Executes one task through a specific agent's real system prompt, via the
+// Gemini API free tier (Google AI Studio key — no billing required).
 // TODO(phase-2): approval_level (1/2/3) is not enforced here yet — every
 // task runs immediately regardless of the agent's level. Add a review/
 // approve step before this goes to level 2/3 agents for real.
@@ -25,8 +26,8 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
   } = await supabase.auth.getUser();
   if (!user) return { error: "Bạn cần đăng nhập." };
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return { error: "Server chưa cấu hình ANTHROPIC_API_KEY — xem README." };
+  if (!process.env.GEMINI_API_KEY) {
+    return { error: "Server chưa cấu hình GEMINI_API_KEY — xem README." };
   }
 
   const { data: agent, error: agentError } = await supabase
@@ -55,18 +56,17 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
   if (insertError) return { error: insertError.message };
 
   try {
-    const anthropic = new Anthropic();
-    const response = await anthropic.messages.create({
-      model: "claude-opus-5",
-      max_tokens: 4096,
-      system: agent.system_prompt,
-      messages: [{ role: "user", content: trimmed }],
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: trimmed,
+      config: {
+        systemInstruction: agent.system_prompt,
+        maxOutputTokens: 4096,
+      },
     });
 
-    const textBlock = response.content.find(
-      (block): block is Anthropic.TextBlock => block.type === "text"
-    );
-    const output = textBlock?.text ?? "";
+    const output = response.text ?? "";
 
     await supabase.from("tasks").update({ status: "done", output }).eq("id", task.id);
     await supabase.from("audit_log").insert({
@@ -80,7 +80,7 @@ export async function runAgentTask(agentId: string, input: string): Promise<RunT
     revalidatePath("/dashboard");
     return { error: null, output };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Gọi Claude API thất bại.";
+    const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
     await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", task.id);
     return { error: message };
   }

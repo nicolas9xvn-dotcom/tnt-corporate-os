@@ -1,7 +1,9 @@
 # TNT AI Corporate Operating System — Phase 1
 
-Next.js (App Router, TypeScript, Tailwind) + Supabase (Auth + Postgres) + Claude API,
-deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./docs/tnt-corporate-os-kien-truc.md).
+Next.js (App Router, TypeScript, Tailwind) + Supabase (Auth + Postgres) + Gemini API,
+deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./docs/tnt-corporate-os-kien-truc.md)
+đề xuất Claude API — đổi sang Gemini (`gemini-2.5-flash`) vì có gói miễn phí, xem "Kết nối
+Gemini API" bên dưới.
 
 ## Trạng thái hiện tại
 
@@ -26,14 +28,14 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
 - CEO Command Center giờ vẽ đúng sơ đồ tổ chức (`network-view.tsx`, dùng `@xyflow/react`):
   agent cấp `executive` (không thuộc phòng ban) đứng giữa, các agent khác toả ra theo đúng
   chuỗi `reports_to`, không còn liệt kê phẳng theo phòng ban.
-- **Agent chạy được task thật qua Claude API** (`src/lib/actions/run-task.ts`): bấm vào 1
-  agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `claude-opus-5` với đúng
+- **Agent chạy được task thật qua Gemini API** (`src/lib/actions/run-task.ts`): bấm vào 1
+  agent trong sơ đồ → panel chi tiết có ô "Giao việc" → gọi `gemini-2.5-flash` với đúng
   `system_prompt` của agent đó → lưu kết quả thật vào bảng `tasks` + `audit_log`. Chỉ hoạt
   động với agent đã có `system_prompt` (15/19 agent AME29); 4 role quản lý còn thiếu prompt
   sẽ báo lỗi rõ ràng thay vì tự bịa prompt để chạy.
 
 **TODO — chưa kết nối thật:**
-- [ ] Chưa cấu hình `ANTHROPIC_API_KEY` trên Vercel — xem "Kết nối Claude API" bên dưới.
+- [ ] Chưa cấu hình `GEMINI_API_KEY` trên Vercel — xem "Kết nối Gemini API" bên dưới.
       Thiếu biến này thì nút "Giao việc" báo lỗi rõ ràng, không crash.
 - [ ] **Chưa gate theo `approval_level`** — mọi agent chạy task ngay lập tức, kể cả
       manager/executive lẽ ra cần người duyệt trước (Level 2/3 theo thiết kế). Founder chưa
@@ -73,17 +75,20 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
 6. Thêm `business_units` / `departments` / `agents` qua Table Editor hoặc SQL — chưa có UI
    quản trị ở Phase 1 (xem TODO).
 
-## Kết nối Claude API
+## Kết nối Gemini API
 
-Để nút "Giao việc" trong CEO Command Center hoạt động thật:
+Để nút "Giao việc" trong CEO Command Center hoạt động thật (miễn phí):
 
-1. Vào [console.anthropic.com](https://console.anthropic.com) → **API Keys** → tạo key mới.
+1. Vào [aistudio.google.com/apikey](https://aistudio.google.com/apikey) → đăng nhập bằng
+   tài khoản Google → **Create API key**. Không cần thẻ tín dụng cho gói free tier.
 2. **Không dán key vào chat** — thêm trực tiếp vào Environment Variables trên Vercel (Project
-   Settings → Environment Variables): tên biến `ANTHROPIC_API_KEY`, giá trị là key vừa tạo.
-   Đây là secret thật (khác với Supabase anon key) nên không nên chia sẻ qua chat.
+   Settings → Environment Variables): tên biến `GEMINI_API_KEY`, giá trị là key vừa tạo.
 3. Redeploy lại project trên Vercel để biến môi trường mới có hiệu lực.
-4. Nếu muốn chạy local, thêm dòng `ANTHROPIC_API_KEY=...` vào `.env.local` (đã có sẵn trong
+4. Nếu muốn chạy local, thêm dòng `GEMINI_API_KEY=...` vào `.env.local` (đã có sẵn trong
    `.env.local.example`, file này không bị commit).
+
+Gói free tier có giới hạn số lượt gọi/phút — đủ dùng để test AME29, nếu sau này cần dùng
+nhiều/ổn định hơn thì nâng cấp qua Google Cloud billing (vẫn cùng 1 API key, không cần sửa code).
 
 ## Chạy local
 

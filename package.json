@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.120.0",
+    "@google/genai": "^2.18.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
     "@xyflow/react": "^12.11.3",
