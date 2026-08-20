@@ -60,6 +60,10 @@ export interface Agent {
   escalation_note: string | null;
   reports_to: string | null;
   system_prompt: string | null;
+  // Standing style/quality rule, set by the founder (see house-rules.ts) —
+  // prepended to every future call to this agent, separate from the
+  // rolling task-history memory which can get pushed out over time.
+  house_rules: string | null;
   created_at: string;
 }
 

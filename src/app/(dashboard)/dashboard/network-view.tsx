@@ -19,6 +19,7 @@ import { buildAgentTree, layoutRadialTree, pickDirection, type RadialPosition } 
 import { createClient } from "@/lib/supabase/client";
 import { DepartmentIcon } from "./department-icon";
 import { RunTaskForm } from "./run-task-form";
+import { HouseRuleForm } from "./house-rule-form";
 
 const LEVEL_LABEL: Record<AgentLevel, string> = {
   executive: "Executive",
@@ -167,10 +168,14 @@ const nodeTypes = { agent: AgentNodeCard };
 function AgentDetailPanel({
   node,
   department,
+  hasDirectReports,
+  canManage,
   onClose,
 }: {
   node: AgentTreeNode;
   department: Department | null;
+  hasDirectReports: boolean;
+  canManage: boolean;
   onClose: () => void;
 }) {
   return (
@@ -239,6 +244,9 @@ function AgentDetailPanel({
             </p>
           </div>
           <RunTaskForm agentId={node.id} approvalLevel={node.approval_level} />
+          {canManage && (
+            <HouseRuleForm agentId={node.id} currentRule={node.house_rules} hasDirectReports={hasDirectReports} />
+          )}
         </>
       ) : (
         <p className="mt-3 text-xs italic text-amber-400/80">
@@ -249,15 +257,24 @@ function AgentDetailPanel({
   );
 }
 
-function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Department[] }) {
+function FlowCanvas({
+  agents,
+  departments,
+  canManage,
+}: {
+  agents: Agent[];
+  departments: Department[];
+  canManage: boolean;
+}) {
   const { setCenter, fitView } = useReactFlow();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const statusById = useLiveAgentStatus(agents);
 
-  const { nodes, edges, nodeDataById } = useMemo(() => {
+  const { nodes, edges, nodeDataById, reportsToIds } = useMemo(() => {
     const departmentsById = new Map(departments.map((d) => [d.id, d]));
     const roots = buildAgentTree(agents);
     const positions = layoutRadialTree(roots);
+    const reportsToIds = new Set(agents.map((a) => a.reports_to).filter((id): id is string => id !== null));
 
     const nodes: Node[] = [];
     const edges: Edge[] = [];
@@ -317,7 +334,7 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
 
     roots.forEach((root) => walk(root));
 
-    return { nodes, edges, nodeDataById };
+    return { nodes, edges, nodeDataById, reportsToIds };
   }, [agents, departments, statusById]);
 
   const selectedData = selectedId ? (nodeDataById.get(selectedId) ?? null) : null;
@@ -361,20 +378,34 @@ function FlowCanvas({ agents, departments }: { agents: Agent[]; departments: Dep
       </ReactFlow>
 
       {selectedData && (
-        <AgentDetailPanel node={selectedData.agent} department={selectedData.department} onClose={handleClose} />
+        <AgentDetailPanel
+          node={selectedData.agent}
+          department={selectedData.department}
+          hasDirectReports={reportsToIds.has(selectedData.agent.id)}
+          canManage={canManage}
+          onClose={handleClose}
+        />
       )}
     </div>
   );
 }
 
-export function NetworkView({ agents, departments }: { agents: Agent[]; departments: Department[] }) {
+export function NetworkView({
+  agents,
+  departments,
+  canManage,
+}: {
+  agents: Agent[];
+  departments: Department[];
+  canManage: boolean;
+}) {
   if (agents.length === 0) {
     return <p className="text-sm text-slate-600">Chưa có agent nào trong công ty con này.</p>;
   }
 
   return (
     <ReactFlowProvider>
-      <FlowCanvas agents={agents} departments={departments} />
+      <FlowCanvas agents={agents} departments={departments} canManage={canManage} />
     </ReactFlowProvider>
   );
 }

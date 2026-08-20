@@ -87,7 +87,7 @@ export async function runAgentTask(
 
   const { data: agent, error: agentError } = await supabase
     .from("agents")
-    .select("id, name, system_prompt, approval_level")
+    .select("id, name, system_prompt, approval_level, house_rules")
     .eq("id", agentId)
     .single();
 
@@ -146,7 +146,7 @@ export async function runAgentTask(
     const result = await runAgentConversation({
       supabase,
       userId: user.id,
-      agent: { id: agent.id, name: agent.name, system_prompt: agent.system_prompt },
+      agent: { id: agent.id, name: agent.name, system_prompt: agent.system_prompt, house_rules: agent.house_rules },
       input: trimmed,
       attachments: geminiAttachments,
       taskId,

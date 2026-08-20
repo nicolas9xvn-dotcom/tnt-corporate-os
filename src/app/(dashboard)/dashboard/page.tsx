@@ -77,7 +77,7 @@ export default async function DashboardPage() {
     supabase
       .from("agents")
       .select(
-        "id, business_unit_id, department_id, name, role, level, status, approval_level, responsibilities, tools, kpi, escalation_note, reports_to, system_prompt, created_at"
+        "id, business_unit_id, department_id, name, role, level, status, approval_level, responsibilities, tools, kpi, escalation_note, reports_to, system_prompt, house_rules, created_at"
       )
       .order("created_at", { ascending: true }),
   ]);

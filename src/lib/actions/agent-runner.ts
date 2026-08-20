@@ -27,6 +27,16 @@ export interface RunnerAgent {
   id: string;
   name: string;
   system_prompt: string;
+  house_rules: string | null;
+}
+
+// Combines the agent's core system prompt with any standing rule the
+// founder set (see house-rules.ts) — house_rules is called out explicitly
+// so the model can't quietly drift from it the way it might with something
+// buried in rolling task history.
+function buildSystemInstruction(agent: RunnerAgent): string {
+  if (!agent.house_rules) return agent.system_prompt;
+  return `${agent.system_prompt}\n\n--- QUY TẮC CỐ ĐỊNH (bắt buộc tuân theo ở mọi lần trả lời, không tự ý thay đổi) ---\n${agent.house_rules}`;
 }
 
 export interface DelegationBudget {
@@ -54,11 +64,16 @@ type Turn = { role: string; parts: Part[] };
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
   const { data } = await supabase
     .from("agents")
-    .select("id, name, system_prompt")
+    .select("id, name, system_prompt, house_rules")
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
 
-  return (data ?? []).map((r) => ({ id: r.id, name: r.name, system_prompt: r.system_prompt as string }));
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    system_prompt: r.system_prompt as string,
+    house_rules: r.house_rules,
+  }));
 }
 
 // Runs one agent's turn on an EXISTING task row — the caller already
@@ -91,6 +106,7 @@ export async function runAgentConversation(params: {
     const canDelegate = directReports.length > 0 && budget.remaining > 0;
     const history = await loadAgentHistory(supabase, agent.id);
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const systemInstruction = buildSystemInstruction(agent);
 
     const contents: Turn[] = [
       ...history.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
@@ -145,14 +161,14 @@ export async function runAgentConversation(params: {
         response = await ai.models.generateContent({
           model: MODEL,
           contents,
-          config: { systemInstruction: agent.system_prompt, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
+          config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
         });
       } catch (err) {
         // Only the leaf (non-delegating) path can fall back — a delegating
         // agent needs Gemini's function calling, which the fallback
         // providers below don't implement (see text-fallback.ts).
         if (!canDelegate && isQuotaError(err)) {
-          const fallback = await callFallbackProviders(agent.system_prompt, history, input, attachments);
+          const fallback = await callFallbackProviders(systemInstruction, history, input, attachments);
           finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
           break;
         }
@@ -241,7 +257,7 @@ export async function runAgentConversation(params: {
         const closing = await ai.models.generateContent({
           model: MODEL,
           contents,
-          config: { systemInstruction: agent.system_prompt, maxOutputTokens: MAX_OUTPUT_TOKENS },
+          config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS },
         });
         finalText = closing.text ?? "";
       }

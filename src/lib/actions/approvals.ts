@@ -16,6 +16,7 @@ interface ApprovalAgent {
   system_prompt: string | null;
   approval_level: number | null;
   business_unit_id: string;
+  house_rules: string | null;
 }
 
 // Level 2: the chairman or the ceo of that agent's own business unit can
@@ -52,7 +53,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
 
   const { data: task, error: taskError } = await supabase
     .from("tasks")
-    .select("id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id)")
+    .select("id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id, house_rules)")
     .eq("id", taskId)
     .single();
   if (taskError || !task) return { error: taskError?.message ?? "Không tìm thấy task." };
@@ -83,7 +84,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
     const result = await runAgentConversation({
       supabase,
       userId: user.id,
-      agent: { id: task.agent_id, name: agent.name, system_prompt: agent.system_prompt },
+      agent: { id: task.agent_id, name: agent.name, system_prompt: agent.system_prompt, house_rules: agent.house_rules },
       input: task.input ?? "",
       attachments: geminiAttachments,
       taskId,

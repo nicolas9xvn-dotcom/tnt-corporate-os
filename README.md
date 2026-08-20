@@ -159,6 +159,26 @@ Gemini API" bên dưới.
     ảnh, không đọc được PDF/txt/csv khi chạy qua model dự phòng (chỉ Gemini đọc được đủ loại
     file như thiết kế ban đầu).
   - Không cần migration SQL nào cho phần này — chỉ cần thêm biến môi trường.
+- **Quy tắc cố định (house rules) — chuẩn mực xuyên suốt, không tự đổi**
+  (`src/lib/actions/house-rules.ts`, `house-rule-form.tsx`, `agent-runner.ts`,
+  `supabase/migrations/0012_agent_house_rules.sql`): chairman/ceo mở panel 1 agent → mục
+  "Quy tắc cố định" → nhập hướng dẫn + (tuỳ chọn) ảnh mẫu, VD "luôn viết caption theo phong
+  cách ảnh này" → Gemini viết lại thành 1 quy tắc rõ ràng, cụ thể, lưu vào cột
+  `agents.house_rules`. Từ đó, **mọi lần giao việc sau này cho agent đó đều tự động kèm quy
+  tắc này** (gắn thẳng vào system prompt mỗi lần gọi Gemini) — khác với trí nhớ 20 lần gần
+  nhất (có thể bị đẩy trôi theo thời gian), quy tắc cố định **không bao giờ tự mất** cho tới
+  khi chairman/ceo chủ động xoá hoặc đặt lại.
+  - **Tích "Áp dụng cho tất cả agent cấp dưới"** để lan quy tắc xuống toàn bộ nhóm (không chỉ
+    cấp dưới trực tiếp — xuống tới tận specialist): VD đưa 1 ảnh mẫu nail cho Content
+    Director, tích ô này → TikTok/Facebook/Instagram Agent (toàn bộ cấp dưới của Content
+    Director) đều nhận đúng quy tắc đó luôn, không cần lặp lại từng agent.
+  - **Cách hoạt động thật, cần hiểu rõ:** quy tắc lưu lại là **bản mô tả bằng chữ** do Gemini
+    viết ra từ ảnh/hướng dẫn — không phải giữ nguyên ảnh gốc để dùng lại mãi mãi. Nếu đổi mẫu
+    ảnh sau này, cần đặt lại quy tắc (ảnh mới) — quy tắc cũ không tự cập nhật theo ảnh mới.
+  - Chỉ chairman/ceo của đúng công ty con mới thấy và đặt được quy tắc (dùng chung RLS với
+    quyền sửa agent — `agents_write`) — staff không thấy mục này.
+  - **Cần chạy `supabase/migrations/0012_agent_house_rules.sql`** trên Supabase (SQL Editor)
+    trước khi dùng.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

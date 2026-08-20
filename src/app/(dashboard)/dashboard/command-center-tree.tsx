@@ -127,7 +127,7 @@ function BusinessUnitCard({
       {open && (
         <div className="flex flex-col gap-4 border-t border-cyan-900/30 px-5 py-4">
           <DepartmentTabs departments={businessUnit.departments} />
-          <NetworkView agents={businessUnit.agents} departments={businessUnit.departments} />
+          <NetworkView agents={businessUnit.agents} departments={businessUnit.departments} canManage={canManage} />
 
           {canManage && (
             <div className="border-t border-cyan-900/20 pt-3">
