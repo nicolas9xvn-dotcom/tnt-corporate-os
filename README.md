@@ -18,6 +18,12 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
   `src/lib/actions/command-center.ts`), ẩn/hiện theo quyền: chairman tạo được công ty con ở
   bất kỳ đâu; ceo chỉ tạo phòng ban/agent trong đúng công ty con của mình (RLS chặn ở tầng DB
   nếu ai đó cố lách qua UI).
+- `supabase/migrations/0003_agent_hierarchy.sql` + `0004_seed_ame29_agents.sql`: thêm tầng
+  Executive vào bảng `agents` (`level`, `status`, `approval_level`, `responsibilities`,
+  `tools`, `kpi`, `escalation_note`, `business_unit_id` trực tiếp) và seed đúng cấu trúc
+  AME29 thật (6 phòng ban, 19 agent — 15 có system prompt thật do founder cung cấp, 4 role
+  quản lý trung gian còn thiếu prompt). **Chưa chạy trên Supabase thật** — xem hướng dẫn
+  "Kết nối Supabase" bên dưới, chạy nối tiếp theo đúng số thứ tự file.
 
 **TODO — chưa kết nối thật:**
 - [ ] Chưa gọi Claude API ở đâu cả (chưa có route xử lý agent task) — Phase 1 chỉ có
@@ -27,6 +33,19 @@ deploy qua Vercel. Kiến trúc gốc: [`docs/tnt-corporate-os-kien-truc.md`](./
       Table Editor trong lúc chưa có UI quản trị đầy đủ.
 - [ ] Chưa có UI gán role/business_unit_id cho user mới (mặc định mọi user mới là `staff`,
       không thuộc business unit nào — chairman phải tự sửa trong Supabase Table Editor).
+- [ ] **CEO Command Center chưa hiển thị agent cấp `executive`** (agent không thuộc
+      phòng ban nào, ví dụ CEO AME29) — cây hiện tại chỉ nhóm agent theo department, nên
+      executive sẽ "vô hình" trên UI dù đã có thật trong DB. Cần vẽ lại tree để có 1 tầng
+      riêng cho executive trước department, và hiển thị chuỗi `reports_to` thay vì liệt kê
+      agent phẳng trong từng phòng ban.
+- [ ] 4 role quản lý mới (Finance Manager, Admin & Legal Manager, Marketing Director,
+      Brand & Design Manager) được tạo làm tầng trung gian nhưng **chưa có system prompt**
+      — founder cung cấp sau, hiện để `NULL`.
+- [ ] `status/approval_level/responsibilities/tools/kpi/escalation_note` đã có cột trong
+      schema nhưng chưa điền giá trị thật cho từng agent (trừ `status` mặc định `idle`) —
+      cần founder quyết định approval_level/KPI cho từng agent, không tự suy đoán.
+- [ ] Chưa có bảng `workflows`/`approvals` — Google Review workflow và cơ chế approval
+      1/2/3 mới dừng ở thiết kế, chưa có schema thật (xem migration tiếp theo).
 - [ ] Knowledge Base / Task / Report / Decision Log: bảng + RLS đã có, nhưng chưa có
       màn hình để tạo/xem — chỉ mới có ở tầng database.
 - [ ] Phase 2 trở đi (Executive Board, Red Team, Audit Log UI, Network View, tích hợp

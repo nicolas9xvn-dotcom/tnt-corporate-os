@@ -4,6 +4,17 @@
 export type UserRole = "chairman" | "ceo" | "staff";
 export type BusinessUnitStatus = "active" | "coming_soon";
 export type TaskStatus = "pending" | "in_progress" | "done" | "failed";
+export type AgentLevel = "executive" | "director" | "manager" | "specialist";
+export type AgentStatus =
+  | "active"
+  | "idle"
+  | "running"
+  | "waiting"
+  | "warning"
+  | "error"
+  | "approval_required"
+  | "offline";
+export type ApprovalLevel = 1 | 2 | 3;
 
 export interface Organization {
   id: string;
@@ -30,9 +41,17 @@ export interface Department {
 
 export interface Agent {
   id: string;
-  department_id: string;
+  business_unit_id: string;
+  department_id: string | null;
   name: string;
   role: string | null;
+  level: AgentLevel | null;
+  status: AgentStatus;
+  approval_level: ApprovalLevel | null;
+  responsibilities: string[] | null;
+  tools: unknown | null;
+  kpi: unknown | null;
+  escalation_note: string | null;
   reports_to: string | null;
   system_prompt: string | null;
   created_at: string;

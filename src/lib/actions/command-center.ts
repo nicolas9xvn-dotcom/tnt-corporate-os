@@ -78,10 +78,20 @@ export async function createAgent(
 
   if (!name) return { error: "Tên agent không được để trống." };
 
+  const { data: department, error: deptError } = await supabase
+    .from("departments")
+    .select("business_unit_id")
+    .eq("id", departmentId)
+    .single();
+
+  if (deptError) return { error: deptError.message };
+
   const { error } = await supabase.from("agents").insert({
+    business_unit_id: department.business_unit_id,
     department_id: departmentId,
     name,
     role: role || null,
+    level: "specialist",
     system_prompt: systemPrompt || null,
   });
 
