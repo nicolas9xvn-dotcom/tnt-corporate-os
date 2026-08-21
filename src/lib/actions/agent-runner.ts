@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
+import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
@@ -35,6 +36,8 @@ export interface RunnerAgent {
   system_prompt: string;
   house_rules: string | null;
   image_generation: boolean;
+  can_read_schedule: boolean;
+  can_read_revenue: boolean;
 }
 
 // Combines the agent's core system prompt with any standing rule the
@@ -77,7 +80,7 @@ type Turn = { role: string; parts: Part[] };
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
   const { data } = await supabase
     .from("agents")
-    .select("id, name, system_prompt, house_rules, image_generation")
+    .select("id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue")
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
 
@@ -87,6 +90,8 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     system_prompt: r.system_prompt as string,
     house_rules: r.house_rules,
     image_generation: r.image_generation,
+    can_read_schedule: r.can_read_schedule,
+    can_read_revenue: r.can_read_revenue,
   }));
 }
 
@@ -186,38 +191,59 @@ export async function runAgentConversation(params: {
       },
     ];
 
-    // Gemini doesn't support mixing a built-in server-side tool
-    // (url_context) with custom functionDeclarations in the same call —
-    // an agent that can delegate loses link-reading for that call in
-    // exchange; a leaf agent (no reports) keeps url_context as before.
-    const tools = canDelegate
-      ? [
-          {
-            functionDeclarations: [
-              {
-                name: "delegate_to_agent",
-                description:
-                  "Giao một phần việc cụ thể, rõ ràng cho đúng 1 agent cấp dưới trực tiếp phù hợp nhất. Gọi nhiều lần nếu cần giao cho nhiều agent khác nhau. Nếu tự làm được, không cần gọi hàm này.",
-                parametersJsonSchema: {
-                  type: "object",
-                  properties: {
-                    agent_name: {
-                      type: "string",
-                      enum: directReports.map((r) => r.name),
-                      description: "Tên chính xác của agent cấp dưới trực tiếp sẽ nhận việc",
-                    },
-                    instructions: {
-                      type: "string",
-                      description: "Nội dung công việc cụ thể giao cho agent đó",
-                    },
-                  },
-                  required: ["agent_name", "instructions"],
-                },
-              },
-            ],
+    const functionDeclarations = [];
+    if (canDelegate) {
+      functionDeclarations.push({
+        name: "delegate_to_agent",
+        description:
+          "Giao một phần việc cụ thể, rõ ràng cho đúng 1 agent cấp dưới trực tiếp phù hợp nhất. Gọi nhiều lần nếu cần giao cho nhiều agent khác nhau. Nếu tự làm được, không cần gọi hàm này.",
+        parametersJsonSchema: {
+          type: "object",
+          properties: {
+            agent_name: {
+              type: "string",
+              enum: directReports.map((r) => r.name),
+              description: "Tên chính xác của agent cấp dưới trực tiếp sẽ nhận việc",
+            },
+            instructions: { type: "string", description: "Nội dung công việc cụ thể giao cho agent đó" },
           },
-        ]
-      : [{ urlContext: {} }];
+          required: ["agent_name", "instructions"],
+        },
+      });
+    }
+    if (agent.can_read_schedule) {
+      functionDeclarations.push({
+        name: "get_schedule_gaps",
+        description:
+          "Đọc lịch hẹn THẬT từ app đặt lịch của salon (Firebase) và trả về đúng các khung giờ trống thật của từng nhân viên trong 1 ngày cụ thể — số liệu đã tính sẵn, không tự suy đoán thêm.",
+        parametersJsonSchema: {
+          type: "object",
+          properties: { date: { type: "string", description: "Ngày cần xem, định dạng YYYY-MM-DD" } },
+          required: ["date"],
+        },
+      });
+    }
+    if (agent.can_read_revenue) {
+      functionDeclarations.push({
+        name: "get_revenue_report",
+        description:
+          "Đọc dữ liệu doanh thu THẬT (các lượt dịch vụ đã hoàn thành) từ app của salon (Firebase) trong 1 khoảng ngày cụ thể — số liệu đã tính sẵn, không tự suy đoán thêm.",
+        parametersJsonSchema: {
+          type: "object",
+          properties: {
+            from_date: { type: "string", description: "Ngày bắt đầu, YYYY-MM-DD" },
+            to_date: { type: "string", description: "Ngày kết thúc, YYYY-MM-DD" },
+          },
+          required: ["from_date", "to_date"],
+        },
+      });
+    }
+
+    // Gemini doesn't support mixing a built-in server-side tool
+    // (url_context) with custom functionDeclarations in the same call — an
+    // agent with any custom tool loses link-reading for that call in
+    // exchange; an agent with none of these keeps url_context as before.
+    const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : [{ urlContext: {} }];
 
     const delegatedTo: DelegatedResult[] = [];
     let finalText = "";
@@ -231,10 +257,10 @@ export async function runAgentConversation(params: {
           config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
         });
       } catch (err) {
-        // Only the leaf (non-delegating) path can fall back — a delegating
-        // agent needs Gemini's function calling, which the fallback
-        // providers below don't implement (see text-fallback.ts).
-        if (!canDelegate && isQuotaError(err)) {
+        // Only falls back when this call has no custom tools at all (no
+        // delegation, no Firebase tools) — the fallback providers below
+        // don't implement Gemini's function calling (see text-fallback.ts).
+        if (functionDeclarations.length === 0 && isQuotaError(err)) {
           const fallback = await callFallbackProviders(systemInstruction, history, input, attachments);
           finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
           break;
@@ -252,6 +278,31 @@ export async function runAgentConversation(params: {
       const responseParts: Part[] = [];
 
       for (const call of calls) {
+        if (call.name === "get_schedule_gaps") {
+          const date = String(call.args?.date ?? "");
+          try {
+            const gaps = await getScheduleGaps(date);
+            responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(gaps) } } });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({ functionResponse: { name: call.name, response: { error: message } } });
+          }
+          continue;
+        }
+
+        if (call.name === "get_revenue_report") {
+          const fromDate = String(call.args?.from_date ?? "");
+          const toDate = String(call.args?.to_date ?? "");
+          try {
+            const report = await getRevenueReport(fromDate, toDate);
+            responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(report) } } });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({ functionResponse: { name: call.name, response: { error: message } } });
+          }
+          continue;
+        }
+
         const targetName = String(call.args?.agent_name ?? "");
         const instructions = String(call.args?.instructions ?? "").trim();
         const target = directReports.find((r) => r.name === targetName);

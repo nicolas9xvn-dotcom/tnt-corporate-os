@@ -200,6 +200,37 @@ Gemini API" bên dưới.
     2-3 ảnh/ngày của founder nhiều khả năng nằm trong hạn mức free.
   - **Cần chạy `supabase/migrations/0013_image_generation.sql`** trên Supabase (SQL Editor)
     trước khi dùng.
+- **Nối vào Firebase thật của app AME29 Nail (lịch hẹn + doanh thu thật)**
+  (`src/lib/firebase-admin.ts`, `src/lib/firebase-tools.ts`,
+  `supabase/migrations/0014_firebase_tools.sql`): app đặt lịch/POS riêng của salon
+  (`ame29-nail.netlify.app`, Firebase project `ame29-nail`) là nguồn dữ liệu thật —
+  không phải Supabase của hệ thống này. Hai công cụ mới, đọc **chỉ đọc** (không bao giờ
+  ghi), gắn cho đúng 2 agent:
+  - **CEO AME29** (`can_read_schedule`): công cụ `get_schedule_gaps` — đọc `bookings/{ngày}`
+    thật, tự tính (bằng code, không phải AI đoán) khung giờ trống thật của từng nhân viên
+    trong ngày, dựa trên giờ mở cửa 10:00–22:00 lấy từ chính flyer marketing của AME29. Theo
+    đúng luồng founder chọn: CEO đọc lịch trống → tự giao lại (`delegate_to_agent`, cơ chế
+    có sẵn) cho **Chiến lược Giá & Dịch vụ** (cấp dưới trực tiếp của CEO) → agent đó đề xuất
+    chương trình giảm giá cho khung giờ trống → đề xuất này nằm trong câu trả lời cuối CEO
+    gửi lại cho founder. **Không tự động bật giảm giá** — founder tự quyết định có áp dụng
+    hay không, hệ thống chỉ đọc + đề xuất.
+  - **Kế toán** (`can_read_revenue`): công cụ `get_revenue_report` — đọc `shop/data.history`
+    thật, tự tính (bằng code) tổng doanh thu/số lượt theo nhân viên/dịch vụ/nguồn khách
+    trong 1 khoảng ngày cụ thể.
+  - **Bảo mật, cần đọc kỹ:** kết nối này dùng Firebase **Service Account key** — key này về
+    mặt kỹ thuật đọc/ghi được TOÀN BỘ dữ liệu Firebase, không bị chặn bởi Firestore Rules.
+    **Không bao giờ dán key này vào chat** — thêm thẳng vào Vercel Environment Variables,
+    biến `FIREBASE_SERVICE_ACCOUNT_KEY` (giá trị là toàn bộ nội dung file `.json` tải từ
+    Firebase Console → Project settings → Service accounts). Code trong
+    `firebase-admin.ts` tự kỷ luật chỉ gọi `.get()`, không bao giờ gọi
+    `.set()/.update()/.delete()/.add()` — nhưng đây là kỷ luật ở tầng code, không phải giới
+    hạn quyền thật của key. Muốn Google chặn cứng ở tầng quyền, tạo 1 service account riêng
+    chỉ có role "Cloud Datastore Viewer" trong Google Cloud IAM thay vì dùng key mặc định.
+  - Giờ mở cửa (10:00–22:00) đang hard-code trong `firebase-tools.ts` vì app Firebase không
+    lưu sẵn — sửa trực tiếp trong code nếu giờ mở cửa thay đổi.
+  - **Cần chạy `supabase/migrations/0014_firebase_tools.sql`** trên Supabase (SQL Editor)
+    trước khi dùng — không đụng gì tới Firebase, chỉ thêm 2 cột đánh dấu agent nào được dùng
+    công cụ nào.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

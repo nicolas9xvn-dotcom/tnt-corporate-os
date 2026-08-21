@@ -18,6 +18,8 @@ interface ApprovalAgent {
   business_unit_id: string;
   house_rules: string | null;
   image_generation: boolean;
+  can_read_schedule: boolean;
+  can_read_revenue: boolean;
 }
 
 // Level 2: the chairman or the ceo of that agent's own business unit can
@@ -55,7 +57,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select(
-      "id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id, house_rules, image_generation)"
+      "id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id, house_rules, image_generation, can_read_schedule, can_read_revenue)"
     )
     .eq("id", taskId)
     .single();
@@ -93,6 +95,8 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
         system_prompt: agent.system_prompt,
         house_rules: agent.house_rules,
         image_generation: agent.image_generation,
+        can_read_schedule: agent.can_read_schedule,
+        can_read_revenue: agent.can_read_revenue,
       },
       input: task.input ?? "",
       attachments: geminiAttachments,
