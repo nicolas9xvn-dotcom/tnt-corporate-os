@@ -45,8 +45,23 @@ export interface RunnerAgent {
 // so the model can't quietly drift from it the way it might with something
 // buried in rolling task history.
 function buildSystemInstruction(agent: RunnerAgent): string {
-  if (!agent.house_rules) return agent.system_prompt;
-  return `${agent.system_prompt}\n\n--- QUY TẮC CỐ ĐỊNH (bắt buộc tuân theo ở mọi lần trả lời, không tự ý thay đổi) ---\n${agent.house_rules}`;
+  let instruction = agent.system_prompt;
+
+  if (agent.house_rules) {
+    instruction += `\n\n--- QUY TẮC CỐ ĐỊNH (bắt buộc tuân theo ở mọi lần trả lời, không tự ý thay đổi) ---\n${agent.house_rules}`;
+  }
+
+  // Rolling history (agent-history.ts) replays this agent's own past
+  // answers as prior conversation turns — including any past answer about
+  // schedule/revenue that was wrong (a bug, a stale Firebase error, or a
+  // hallucination) but got saved as "done" anyway. Without this, the model
+  // treats its own earlier wrong answer as established fact and stays
+  // "consistent" with it instead of re-checking reality.
+  if (agent.can_read_schedule || agent.can_read_revenue) {
+    instruction += `\n\n--- DỮ LIỆU THẬT, KHÔNG ĐƯỢC BỊA ---\nBạn có thể gọi hàm để đọc dữ liệu lịch hẹn/doanh thu THẬT từ Firebase của salon. Với MỌI câu hỏi liên quan đến lịch làm việc, giờ trống, hay doanh thu: luôn gọi lại hàm tương ứng để lấy số liệu MỚI NHẤT cho câu hỏi hiện tại — tuyệt đối không dùng lại tên nhân viên, giờ giấc, hay số liệu đã từng nói trong các lượt hội thoại trước đó, kể cả do chính bạn nói trước đây (có thể lúc đó là do lỗi hoặc câu trả lời sai). Nếu hàm báo lỗi hoặc trả về danh sách rỗng, PHẢI nói thẳng với người dùng là không lấy được dữ liệu thật lúc này — tuyệt đối không tự đoán hay dựng ra tên người/khung giờ/số tiền không có trong kết quả hàm trả về.`;
+  }
+
+  return instruction;
 }
 
 export interface DelegationBudget {
@@ -279,10 +294,21 @@ export async function runAgentConversation(params: {
           const date = String(call.args?.date ?? "");
           try {
             const gaps = await getScheduleGaps(date);
-            responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(gaps) } } });
+            const output =
+              gaps.length > 0
+                ? JSON.stringify(gaps)
+                : "Không có khung giờ trống nào — nói thẳng với người dùng là không có, không tự bịa ra khung giờ.";
+            responseParts.push({ functionResponse: { name: call.name, response: { output } } });
           } catch (err) {
             const message = err instanceof Error ? err.message : "Lỗi không xác định.";
-            responseParts.push({ functionResponse: { name: call.name, response: { error: message } } });
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: {
+                  error: `KHÔNG lấy được dữ liệu lịch thật (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa tên nhân viên hay khung giờ trống.`,
+                },
+              },
+            });
           }
           continue;
         }
@@ -295,7 +321,14 @@ export async function runAgentConversation(params: {
             responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(report) } } });
           } catch (err) {
             const message = err instanceof Error ? err.message : "Lỗi không xác định.";
-            responseParts.push({ functionResponse: { name: call.name, response: { error: message } } });
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: {
+                  error: `KHÔNG lấy được dữ liệu doanh thu thật (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa số liệu.`,
+                },
+              },
+            });
           }
           continue;
         }
