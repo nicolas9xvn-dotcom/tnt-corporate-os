@@ -1,4 +1,4 @@
-import { GoogleGenAI, Modality, type FunctionCall, type FunctionResponse } from "@google/genai";
+import { GoogleGenAI, Modality, type Content, type Part } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
@@ -68,14 +68,6 @@ export interface AgentConversationResult {
   delegatedTo: DelegatedResult[];
   generatedImage?: GeneratedImage;
 }
-
-type Part = {
-  text?: string;
-  inlineData?: { mimeType: string; data: string };
-  functionCall?: FunctionCall;
-  functionResponse?: FunctionResponse;
-};
-type Turn = { role: string; parts: Part[] };
 
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
   const { data } = await supabase
@@ -180,7 +172,7 @@ export async function runAgentConversation(params: {
     const canDelegate = directReports.length > 0 && budget.remaining > 0;
     const history = await loadAgentHistory(supabase, agent.id);
 
-    const contents: Turn[] = [
+    const contents: Content[] = [
       ...history.map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
       {
         role: "user",
@@ -274,7 +266,12 @@ export async function runAgentConversation(params: {
         break;
       }
 
-      contents.push({ role: "model", parts: calls.map((c) => ({ functionCall: c })) });
+      // Use the real response parts (not the flattened `calls` array) so any
+      // thoughtSignature Gemini attached to a functionCall part is echoed
+      // back verbatim — omitting it makes the next call fail with "Function
+      // call is missing a thought_signature" (400 INVALID_ARGUMENT).
+      const modelParts = response.candidates?.[0]?.content?.parts ?? calls.map((c) => ({ functionCall: c }));
+      contents.push({ role: "model", parts: modelParts });
       const responseParts: Part[] = [];
 
       for (const call of calls) {
