@@ -4,6 +4,7 @@ import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
+import { getCompetitorData, COMPETITOR_TOPICS } from "@/lib/competitor-tools";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
@@ -38,6 +39,7 @@ export interface RunnerAgent {
   image_generation: boolean;
   can_read_schedule: boolean;
   can_read_revenue: boolean;
+  can_read_competitors: boolean;
 }
 
 // Combines the agent's core system prompt with any standing rule the
@@ -59,6 +61,10 @@ function buildSystemInstruction(agent: RunnerAgent): string {
   // "consistent" with it instead of re-checking reality.
   if (agent.can_read_schedule || agent.can_read_revenue) {
     instruction += `\n\n--- DỮ LIỆU THẬT, KHÔNG ĐƯỢC BỊA ---\nBạn có thể gọi hàm để đọc dữ liệu lịch hẹn/doanh thu THẬT từ Firebase của salon. Với MỌI câu hỏi liên quan đến lịch làm việc, giờ trống, hay doanh thu: luôn gọi lại hàm tương ứng để lấy số liệu MỚI NHẤT cho câu hỏi hiện tại — tuyệt đối không dùng lại tên nhân viên, giờ giấc, hay số liệu đã từng nói trong các lượt hội thoại trước đó, kể cả do chính bạn nói trước đây (có thể lúc đó là do lỗi hoặc câu trả lời sai). Nếu hàm báo lỗi hoặc trả về danh sách rỗng, PHẢI nói thẳng với người dùng là không lấy được dữ liệu thật lúc này — tuyệt đối không tự đoán hay dựng ra tên người/khung giờ/số tiền không có trong kết quả hàm trả về.`;
+  }
+
+  if (agent.can_read_competitors) {
+    instruction += `\n\n--- DỮ LIỆU ĐỐI THỦ THẬT, KHÔNG ĐƯỢC BỊA ---\nBạn có thể gọi hàm get_competitor_data để đọc dữ liệu khảo sát đối thủ THẬT (233 tiệm nail Nhật Bản, tổng hợp từ Google Maps/Hotpepper/Instagram/TikTok/Minimo do founder tự thu thập). Với MỌI câu hỏi về đối thủ, giá thị trường, hay định vị cạnh tranh: luôn gọi hàm này để lấy đúng số liệu — tuyệt đối không tự bịa tên tiệm, giá, rating, hay số review. Đây là dữ liệu khảo sát tại MỘT THỜI ĐIỂM (không phải real-time) — khi trả lời, có thể ghi rõ là "theo dữ liệu khảo sát", không khẳng định đây là giá/rating hiện tại của đối thủ ngay lúc này.`;
   }
 
   return instruction;
@@ -87,7 +93,9 @@ export interface AgentConversationResult {
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
   const { data } = await supabase
     .from("agents")
-    .select("id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue")
+    .select(
+      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors"
+    )
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
 
@@ -99,6 +107,7 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     image_generation: r.image_generation,
     can_read_schedule: r.can_read_schedule,
     can_read_revenue: r.can_read_revenue,
+    can_read_competitors: r.can_read_competitors,
   }));
 }
 
@@ -245,6 +254,25 @@ export async function runAgentConversation(params: {
         },
       });
     }
+    if (agent.can_read_competitors) {
+      functionDeclarations.push({
+        name: "get_competitor_data",
+        description:
+          "Đọc dữ liệu khảo sát đối thủ & giá THẬT (233 tiệm nail Nhật Bản, tổng hợp từ Google Maps/Hotpepper/Instagram/TikTok/Minimo) do founder tự thu thập — số liệu đã có sẵn, không tự suy đoán thêm.",
+        parametersJsonSchema: {
+          type: "object",
+          properties: {
+            topic: {
+              type: "string",
+              enum: COMPETITOR_TOPICS,
+              description:
+                "tong_quan: điểm mạnh/yếu vs trung bình thị trường + đề xuất hành động + so sánh giá theo mô hình. doi_thu_truc_tiep: hồ sơ chi tiết đa nền tảng của các đối thủ gần AME29 nhất (khu Daikokucho, gồm cả AME29). bang_xep_hang_osaka: bảng xếp hạng ~45 tiệm nổi bật ở Osaka. doi_thu_toan_quoc: top tiệm cao cấp toàn quốc để tham khảo phân khúc giá cao.",
+            },
+          },
+          required: ["topic"],
+        },
+      });
+    }
 
     // Gemini doesn't support mixing a built-in server-side tool
     // (url_context) with custom functionDeclarations in the same call — an
@@ -326,6 +354,25 @@ export async function runAgentConversation(params: {
                 name: call.name,
                 response: {
                   error: `KHÔNG lấy được dữ liệu doanh thu thật (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa số liệu.`,
+                },
+              },
+            });
+          }
+          continue;
+        }
+
+        if (call.name === "get_competitor_data") {
+          const topic = String(call.args?.topic ?? "");
+          try {
+            const data = getCompetitorData(topic);
+            responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(data) } } });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: {
+                  error: `KHÔNG lấy được dữ liệu đối thủ (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa tên tiệm, giá, hay rating.`,
                 },
               },
             });

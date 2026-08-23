@@ -231,6 +231,28 @@ Gemini API" bên dưới.
   - **Cần chạy `supabase/migrations/0014_firebase_tools.sql`** trên Supabase (SQL Editor)
     trước khi dùng — không đụng gì tới Firebase, chỉ thêm 2 cột đánh dấu agent nào được dùng
     công cụ nào.
+- **Dữ liệu khảo sát đối thủ & giá thật, gắn cho Chiến lược Giá & Dịch vụ**
+  (`src/lib/competitor-tools.ts`, `src/lib/data/competitor-intel.json`,
+  `supabase/migrations/0015_competitor_intel.sql`): dữ liệu founder tự khảo sát tay 233 tiệm
+  nail Nhật Bản (Google Maps/Hotpepper/Instagram/TikTok/Minimo), lấy từ file dashboard HTML
+  founder gửi (`AME29dashboard.html`), trích riêng phần dữ liệu (bỏ HTML/CSS/JS trình bày),
+  bỏ cột tiếng Nhật (agent chỉ trả lời tiếng Việt) và đóng gói tĩnh trong app — **khác với
+  Firebase ở trên: đây là ảnh chụp tại 1 thời điểm, không phải dữ liệu real-time**, nên hệ
+  thống hướng dẫn agent luôn ghi rõ "theo dữ liệu khảo sát" khi trả lời, không khẳng định là
+  giá/rating hiện tại.
+  - **Chiến lược Giá & Dịch vụ** (`can_read_competitors`): công cụ `get_competitor_data(topic)`
+    với 4 chủ đề, mỗi lần gọi chỉ trả đúng phần cần (tránh nhồi hết ~130K ký tự dữ liệu gốc
+    vào 1 lần gọi): `tong_quan` (điểm mạnh/yếu AME29 vs trung bình thị trường, đề xuất hành
+    động, so sánh giá theo mô hình), `doi_thu_truc_tiep` (hồ sơ đa nền tảng chi tiết của các
+    đối thủ gần AME29 nhất ở khu Daikokucho, gồm cả AME29 để đối chiếu), `bang_xep_hang_osaka`
+    (bảng xếp hạng ~45 tiệm nổi bật ở Osaka), `doi_thu_toan_quoc` (top tiệm cao cấp toàn quốc
+    tham khảo phân khúc giá cao — bài học từ la vela tokyo/Ginza).
+  - Muốn cập nhật dữ liệu mới hơn: chạy lại đúng cách trích xuất này trên file dashboard HTML
+    mới (script nằm trong lịch sử phiên làm việc này, không lưu sẵn trong repo) rồi ghi đè
+    `src/lib/data/competitor-intel.json`.
+  - **Cần chạy `supabase/migrations/0015_competitor_intel.sql`** trên Supabase (SQL Editor)
+    trước khi dùng — chỉ thêm 1 cột đánh dấu agent nào được dùng công cụ này, không cần biến
+    môi trường mới (dữ liệu đóng gói sẵn trong code, không gọi ra ngoài).
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
