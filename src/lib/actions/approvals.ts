@@ -99,6 +99,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
         can_read_schedule: agent.can_read_schedule,
         can_read_revenue: agent.can_read_revenue,
         can_read_competitors: agent.can_read_competitors,
+        business_unit_id: agent.business_unit_id,
       },
       input: task.input ?? "",
       attachments: geminiAttachments,

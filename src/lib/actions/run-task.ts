@@ -89,7 +89,7 @@ export async function runAgentTask(
   const { data: agent, error: agentError } = await supabase
     .from("agents")
     .select(
-      "id, name, system_prompt, approval_level, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors"
+      "id, name, system_prompt, approval_level, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, business_unit_id"
     )
     .eq("id", agentId)
     .single();
@@ -158,6 +158,7 @@ export async function runAgentTask(
         can_read_schedule: agent.can_read_schedule,
         can_read_revenue: agent.can_read_revenue,
         can_read_competitors: agent.can_read_competitors,
+        business_unit_id: agent.business_unit_id,
       },
       input: trimmed,
       attachments: geminiAttachments,

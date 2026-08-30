@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -38,6 +39,11 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </div>
 
         <div className="flex items-center gap-4 text-sm">
+          {currentUser && (currentUser.role === "chairman" || currentUser.role === "ceo") && (
+            <Link href="/dashboard/competitors" className="hidden text-slate-400 transition hover:text-cyan-300 sm:inline">
+              Dữ liệu đối thủ
+            </Link>
+          )}
           {currentUser && (
             <span className="hidden text-slate-400 sm:inline">
               {currentUser.email}{" "}

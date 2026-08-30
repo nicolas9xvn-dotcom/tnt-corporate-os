@@ -40,6 +40,7 @@ export interface RunnerAgent {
   can_read_schedule: boolean;
   can_read_revenue: boolean;
   can_read_competitors: boolean;
+  business_unit_id: string;
 }
 
 // Combines the agent's core system prompt with any standing rule the
@@ -94,7 +95,7 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
   const { data } = await supabase
     .from("agents")
     .select(
-      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors"
+      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, business_unit_id"
     )
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
@@ -108,6 +109,7 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     can_read_schedule: r.can_read_schedule,
     can_read_revenue: r.can_read_revenue,
     can_read_competitors: r.can_read_competitors,
+    business_unit_id: r.business_unit_id,
   }));
 }
 
@@ -364,7 +366,7 @@ export async function runAgentConversation(params: {
         if (call.name === "get_competitor_data") {
           const topic = String(call.args?.topic ?? "");
           try {
-            const data = getCompetitorData(topic);
+            const data = await getCompetitorData(supabase, agent.business_unit_id, topic);
             responseParts.push({ functionResponse: { name: call.name, response: { output: JSON.stringify(data) } } });
           } catch (err) {
             const message = err instanceof Error ? err.message : "Lỗi không xác định.";

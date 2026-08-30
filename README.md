@@ -231,28 +231,47 @@ Gemini API" bên dưới.
   - **Cần chạy `supabase/migrations/0014_firebase_tools.sql`** trên Supabase (SQL Editor)
     trước khi dùng — không đụng gì tới Firebase, chỉ thêm 2 cột đánh dấu agent nào được dùng
     công cụ nào.
-- **Dữ liệu khảo sát đối thủ & giá thật, gắn cho Chiến lược Giá & Dịch vụ**
-  (`src/lib/competitor-tools.ts`, `src/lib/data/competitor-intel.json`,
-  `supabase/migrations/0015_competitor_intel.sql`): dữ liệu founder tự khảo sát tay 233 tiệm
-  nail Nhật Bản (Google Maps/Hotpepper/Instagram/TikTok/Minimo), lấy từ file dashboard HTML
-  founder gửi (`AME29dashboard.html`), trích riêng phần dữ liệu (bỏ HTML/CSS/JS trình bày),
-  bỏ cột tiếng Nhật (agent chỉ trả lời tiếng Việt) và đóng gói tĩnh trong app — **khác với
-  Firebase ở trên: đây là ảnh chụp tại 1 thời điểm, không phải dữ liệu real-time**, nên hệ
-  thống hướng dẫn agent luôn ghi rõ "theo dữ liệu khảo sát" khi trả lời, không khẳng định là
-  giá/rating hiện tại.
+- **Dữ liệu đối thủ & giá — live, sửa xong thấy ngay, Google Maps tự cập nhật**
+  (`src/lib/competitor-tools.ts`, `src/lib/google-places.ts`,
+  `src/app/(dashboard)/dashboard/competitors/`,
+  `supabase/migrations/0015_competitor_intel.sql` → `0017_competitor_live_seed.sql`):
+  ban đầu (migration 0015) đây là ảnh chụp tĩnh đóng gói trong code — sửa gì phải chạy lại
+  script trích xuất rồi deploy lại. Từ migration 0016/0017, dữ liệu (233 tiệm nail Nhật Bản,
+  gốc từ Google Maps/Hotpepper/Instagram/TikTok/Minimo do founder khảo sát tay, cộng dữ liệu
+  cạnh tranh từ file dashboard HTML `AME29dashboard.html`) sống trong các bảng Supabase thật
+  (`competitors`, `competitor_platform_stats`, `competitor_scorecard`, `competitor_actions`,
+  `competitor_price_benchmark`, `competitor_city_rollup`) — trang
+  **`/dashboard/competitors`** (link "Dữ liệu đối thủ" trên header, chairman hoặc ceo AME29)
+  và agent AI đọc CÙNG 1 nguồn, nên sửa 1 chỗ là cả 2 nơi thấy ngay, không cần deploy lại.
+  - **Google Maps tự động cập nhật, các nền tảng khác vẫn sửa tay** — Google Places API là nền
+    tảng DUY NHẤT trong nhóm gmaps/hotpepper/instagram/tiktok/minimo/naily có API công khai hợp
+    lệ để tự động lấy rating/số review; Hotpepper/Instagram/TikTok/Minimo không có, nên phần
+    chữ tường thuật (`detail_vi`) và các nền tảng đó luôn cần founder tự sửa trên trang
+    `/dashboard/competitors`. Điền `google_place_id` cho 1 tiệm (nút "Sửa" trên trang, hoặc cột
+    `google_place_id` trong Supabase) là đủ để tiệm đó được tự động đồng bộ — tìm place_id qua
+    [Place ID Finder](https://developers.google.com/maps/documentation/places/web-service/place-id)
+    của Google.
+  - **Tự động mỗi ngày**: Vercel Cron (`vercel.json`, route
+    `src/app/api/cron/sync-competitors/route.ts`) chạy `0 18 * * *` (18:00 UTC = 03:00 giờ Nhật
+    hôm sau) cho MỌI business unit có dữ liệu — không chỉ AME29. Cần biến môi trường
+    `GOOGLE_PLACES_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (bypass RLS vì cron không có phiên đăng
+    nhập), và `CRON_SECRET` (Vercel tự gắn header `Authorization: Bearer $CRON_SECRET` vào các
+    lần gọi theo lịch — route chặn mọi request khác để không ai đó lạ dùng hết quota Google
+    Places của bạn). Thiếu `GOOGLE_PLACES_API_KEY` thì cron chạy nhưng không đồng bộ được gì,
+    không lỗi gãy cả app. Cũng có nút **"Đồng bộ Google Maps"** ngay trên trang để chạy tay bất
+    cứ lúc nào, không cần chờ lịch.
   - **Chiến lược Giá & Dịch vụ** (`can_read_competitors`): công cụ `get_competitor_data(topic)`
-    với 4 chủ đề, mỗi lần gọi chỉ trả đúng phần cần (tránh nhồi hết ~130K ký tự dữ liệu gốc
-    vào 1 lần gọi): `tong_quan` (điểm mạnh/yếu AME29 vs trung bình thị trường, đề xuất hành
-    động, so sánh giá theo mô hình), `doi_thu_truc_tiep` (hồ sơ đa nền tảng chi tiết của các
-    đối thủ gần AME29 nhất ở khu Daikokucho, gồm cả AME29 để đối chiếu), `bang_xep_hang_osaka`
-    (bảng xếp hạng ~45 tiệm nổi bật ở Osaka), `doi_thu_toan_quoc` (top tiệm cao cấp toàn quốc
-    tham khảo phân khúc giá cao — bài học từ la vela tokyo/Ginza).
-  - Muốn cập nhật dữ liệu mới hơn: chạy lại đúng cách trích xuất này trên file dashboard HTML
-    mới (script nằm trong lịch sử phiên làm việc này, không lưu sẵn trong repo) rồi ghi đè
-    `src/lib/data/competitor-intel.json`.
-  - **Cần chạy `supabase/migrations/0015_competitor_intel.sql`** trên Supabase (SQL Editor)
-    trước khi dùng — chỉ thêm 1 cột đánh dấu agent nào được dùng công cụ này, không cần biến
-    môi trường mới (dữ liệu đóng gói sẵn trong code, không gọi ra ngoài).
+    với 4 chủ đề, mỗi lần gọi chỉ query đúng phần cần (tránh nhồi hết dữ liệu vào 1 lần gọi):
+    `tong_quan` (điểm mạnh/yếu AME29 vs trung bình thị trường, đề xuất hành động, so sánh giá
+    theo mô hình), `doi_thu_truc_tiep` (hồ sơ đa nền tảng chi tiết của các đối thủ gần AME29
+    nhất ở khu Daikokucho, gồm cả AME29 để đối chiếu), `bang_xep_hang_osaka` (bảng xếp hạng ~45
+    tiệm nổi bật ở Osaka), `doi_thu_toan_quoc` (top tiệm cao cấp toàn quốc tham khảo phân khúc
+    giá cao — bài học từ la vela tokyo/Ginza). Dữ liệu vẫn có thể cũ hơn thực tế với các nền
+    tảng sửa tay, nên hệ thống vẫn hướng dẫn agent ghi rõ "theo dữ liệu khảo sát" khi trả lời.
+  - **Cần chạy lần lượt `0015_competitor_intel.sql`** (thêm cột `can_read_competitors` — vẫn
+    cần dù không còn dùng file JSON tĩnh nữa), **`0016_competitor_live_schema.sql`** (tạo 6
+    bảng + RLS), rồi **`0017_competitor_live_seed.sql`** (nạp dữ liệu gốc vào — file dài vì có
+    ~260 câu insert, nhưng an toàn chạy lại nhiều lần) trên Supabase SQL Editor, đúng thứ tự.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
