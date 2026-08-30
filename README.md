@@ -272,6 +272,28 @@ Gemini API" bên dưới.
     cần dù không còn dùng file JSON tĩnh nữa), **`0016_competitor_live_schema.sql`** (tạo 6
     bảng + RLS), rồi **`0017_competitor_live_seed.sql`** (nạp dữ liệu gốc vào — file dài vì có
     ~260 câu insert, nhưng an toàn chạy lại nhiều lần) trên Supabase SQL Editor, đúng thứ tự.
+- **Trang public `japannailmap.netlify.app` cũng đọc cùng dữ liệu sống** (`src/lib/public-
+  competitor-payload.ts`, `src/app/api/public/ame29-dashboard/route.ts`,
+  `supabase/migrations/0018_competitor_bilingual_schema.sql` →
+  `0019_competitor_bilingual_seed.sql`): dashboard đứng riêng (host trên Netlify, không đăng
+  nhập) gốc là file `AME29dashboard.html` founder tự làm — trước đây là 1 file tĩnh, giờ nó gọi
+  `fetch` (thật ra là XHR đồng bộ, xem comment trong file) tới route **public, không cần đăng
+  nhập** `/api/public/ame29-dashboard` để lấy dữ liệu mới nhất mỗi lần tải trang.
+  - **Quyết định của founder: dữ liệu đối thủ này CÔNG KHAI trên internet** — ai có link cũng
+    xem được, không cần tài khoản. Route dùng `SUPABASE_SERVICE_ROLE_KEY` để bypass RLS (bảng
+    gốc vẫn chỉ chairman/ceo AME29 sửa được qua `/dashboard/competitors`) — route public này
+    chỉ ĐỌC, không có đường ghi nào công khai cả.
+  - **Vẫn giữ được nút chuyển Việt/Nhật** của trang gốc — migration 0018 thêm cột `*_ja` song
+    song `*_vi` ở mọi bảng có chữ tường thuật, 0019 nạp lại toàn bộ dữ liệu kèm bản tiếng Nhật
+    gốc từ `AME29dashboard.html` (agent AI ở mục trên vẫn chỉ dùng cột `_vi`, không đổi gì).
+  - Phần chữ tĩnh thuần UI (nhãn nút, "bài học kinh nghiệm" menu/chăm sóc khách hàng...) KHÔNG
+    nằm trong database — vẫn đóng gói cứng ngay trong file HTML (biến `STATIC_CONTENT`) vì nội
+    dung đó gần như không đổi theo dữ liệu đối thủ.
+  - **Cần chạy `0018_competitor_bilingual_schema.sql` rồi `0019_competitor_bilingual_seed.sql`**
+    (sau 0015-0017) trên Supabase SQL Editor. Không cần biến môi trường mới ngoài
+    `SUPABASE_SERVICE_ROLE_KEY` đã thêm ở mục Google Places phía trên.
+  - File HTML đã sửa được gửi riêng cho founder — chỉ cần re-upload/redeploy đúng file đó lên
+    Netlify, thay cho bản tĩnh cũ.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
