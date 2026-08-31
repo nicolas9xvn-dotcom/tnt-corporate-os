@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/client";
 import { DepartmentIcon } from "./department-icon";
 import { RunTaskForm } from "./run-task-form";
 import { HouseRuleForm } from "./house-rule-form";
+import { TaskHistoryPanel } from "./task-history-panel";
 
 const LEVEL_LABEL: Record<AgentLevel, string> = {
   executive: "Executive",
@@ -244,6 +245,7 @@ function AgentDetailPanel({
             </p>
           </div>
           <RunTaskForm agentId={node.id} approvalLevel={node.approval_level} />
+          <TaskHistoryPanel agentId={node.id} />
           {canManage && (
             <HouseRuleForm agentId={node.id} currentRule={node.house_rules} hasDirectReports={hasDirectReports} />
           )}

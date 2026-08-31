@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
-import { runAgentTask, createTaskDraft, cancelTaskDraft } from "@/lib/actions/run-task";
+import { runAgentTask, createTaskDraft, cancelTaskDraft, type GeneratedFileResult } from "@/lib/actions/run-task";
 import { createClient } from "@/lib/supabase/client";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import type { DelegatedResult, GeneratedImage } from "@/lib/actions/agent-runner";
@@ -22,6 +22,7 @@ export function RunTaskForm({
   const [output, setOutput] = useState<string | null>(null);
   const [delegatedTo, setDelegatedTo] = useState<DelegatedResult[]>([]);
   const [generatedImage, setGeneratedImage] = useState<GeneratedImage | null>(null);
+  const [generatedFile, setGeneratedFile] = useState<GeneratedFileResult | null>(null);
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
@@ -62,6 +63,7 @@ export function RunTaskForm({
     setOutput(null);
     setDelegatedTo([]);
     setGeneratedImage(null);
+    setGeneratedFile(null);
     setPendingApproval(false);
 
     let draftTaskId: string | undefined;
@@ -110,6 +112,7 @@ export function RunTaskForm({
       setOutput(result.output ?? "");
       setDelegatedTo(result.delegatedTo ?? []);
       setGeneratedImage(result.generatedImage ?? null);
+      setGeneratedFile(result.generatedFile ?? null);
       resetFiles();
     } catch {
       setError("Có lỗi khi xử lý file — thử lại.");
@@ -125,7 +128,9 @@ export function RunTaskForm({
       <p className="mt-1 text-[0.7rem] text-slate-500">
         Agent nhớ nội dung + kết quả của 20 lần giao việc gần nhất — có thể chia nhỏ việc lớn
         ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước. Nếu agent có cấp dưới, agent có
-        thể tự giao lại việc phù hợp cho đúng người rồi tổng hợp kết quả trả lời bạn.
+        thể tự giao lại việc phù hợp cho đúng người rồi tổng hợp kết quả trả lời bạn. Cần xuất
+        ra file Excel/PDF/Word thay vì chỉ trả lời chữ — cứ nói rõ trong yêu cầu, agent sẽ tự
+        tạo file để tải về.
       </p>
       <form onSubmit={handleSubmit} className="mt-1.5 flex flex-col gap-2">
         <textarea
@@ -199,6 +204,19 @@ export function RunTaskForm({
             alt="Ảnh do AI tạo"
             className="mt-1 max-w-full rounded-md border border-cyan-900/40"
           />
+        </div>
+      )}
+
+      {generatedFile && (
+        <div className="mt-2">
+          <p className="hud-eyebrow text-[0.65rem]">File đã tạo</p>
+          <a
+            href={generatedFile.downloadUrl}
+            download={generatedFile.name}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-cyan-900/40 bg-slate-950/60 px-2.5 py-1.5 text-sm text-cyan-300 hover:border-cyan-600"
+          >
+            ⬇ {generatedFile.name}
+          </a>
         </div>
       )}
 

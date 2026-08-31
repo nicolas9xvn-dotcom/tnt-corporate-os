@@ -2,9 +2,10 @@ import { GoogleGenAI, Modality, type Content, type Part } from "@google/genai";
 import { createClient } from "@/lib/supabase/server";
 import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
-import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
+import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
 import { getCompetitorData, COMPETITOR_TOPICS } from "@/lib/competitor-tools";
+import { generateFile, FILE_FORMAT_EXTENSIONS, FILE_FORMAT_MIME_TYPES, type FileFormat } from "@/lib/file-generator";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
@@ -85,10 +86,16 @@ export interface GeneratedImage {
   base64: string;
 }
 
+export interface GeneratedFile {
+  path: string;
+  name: string;
+}
+
 export interface AgentConversationResult {
   output: string;
   delegatedTo: DelegatedResult[];
   generatedImage?: GeneratedImage;
+  generatedFile?: GeneratedFile;
 }
 
 async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<RunnerAgent[]> {
@@ -275,15 +282,40 @@ export async function runAgentConversation(params: {
         },
       });
     }
+    // Available to every agent unconditionally (not gated behind a
+    // can_generate_files flag like the tools above) — any task can turn
+    // into "gửi cho tôi file Excel/PDF/Word" and there's no good way to
+    // predict in advance which agent will need it.
+    functionDeclarations.push({
+      name: "generate_file",
+      description:
+        "Tạo 1 file thật (Excel/PDF/Word) để người dùng tải về, khi công việc cần xuất ra dạng file/bảng cụ thể thay vì chỉ trả lời bằng chữ. Chỉ gọi khi người giao việc có yêu cầu xuất file hoặc dữ liệu dạng bảng — không tự ý tạo file nếu chỉ cần trả lời ngắn gọn bằng chữ.",
+      parametersJsonSchema: {
+        type: "object",
+        properties: {
+          format: { type: "string", enum: ["xlsx", "pdf", "docx"], description: "xlsx = Excel/bảng tính, pdf = PDF, docx = Word" },
+          filename: { type: "string", description: "Tên file, không kèm phần đuôi (VD: bao-cao-doanh-thu-thang-8)" },
+          title: { type: "string", description: "Tiêu đề hiển thị đầu file/sheet" },
+          content: {
+            type: "string",
+            description:
+              "Nội dung dạng Markdown đơn giản: dòng bắt đầu bằng '# ' hoặc '## ' là tiêu đề, dòng thường là đoạn văn, bảng viết theo cú pháp Markdown pipe table (| Cột 1 | Cột 2 |\\n|---|---|\\n| a | b |). Với file Excel, phần bảng trong nội dung sẽ thành các dòng/cột thật trong sheet.",
+          },
+        },
+        required: ["format", "filename", "title", "content"],
+      },
+    });
 
     // Gemini doesn't support mixing a built-in server-side tool
-    // (url_context) with custom functionDeclarations in the same call — an
-    // agent with any custom tool loses link-reading for that call in
-    // exchange; an agent with none of these keeps url_context as before.
-    const tools = functionDeclarations.length > 0 ? [{ functionDeclarations }] : [{ urlContext: {} }];
+    // (url_context) with custom functionDeclarations in the same call — now
+    // that generate_file is always present, every non-image-generation
+    // agent always has custom tools, so url_context (link-reading) is
+    // permanently traded away in exchange.
+    const tools = [{ functionDeclarations }];
 
     const delegatedTo: DelegatedResult[] = [];
     let finalText = "";
+    let generatedFile: GeneratedFile | undefined;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
@@ -294,10 +326,15 @@ export async function runAgentConversation(params: {
           config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
         });
       } catch (err) {
-        // Only falls back when this call has no custom tools at all (no
-        // delegation, no Firebase tools) — the fallback providers below
-        // don't implement Gemini's function calling (see text-fallback.ts).
-        if (functionDeclarations.length === 0 && isQuotaError(err)) {
+        // Falls back whenever the agent has none of the "real" tools (no
+        // delegation, no Firebase/competitor data reads) — generate_file is
+        // deliberately excluded from this check since it's present on every
+        // agent now: losing file-generation for one answer is an acceptable
+        // degradation while Gemini's quota is out, versus never falling
+        // back at all. The fallback providers below don't implement
+        // Gemini's function calling either way (see text-fallback.ts).
+        const hasRealTools = canDelegate || agent.can_read_schedule || agent.can_read_revenue || agent.can_read_competitors;
+        if (!hasRealTools && isQuotaError(err)) {
           const fallback = await callFallbackProviders(systemInstruction, history, input, attachments);
           finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
           break;
@@ -382,6 +419,35 @@ export async function runAgentConversation(params: {
           continue;
         }
 
+        if (call.name === "generate_file") {
+          const format = String(call.args?.format ?? "") as FileFormat;
+          const filename = sanitizeFileName(String(call.args?.filename ?? "file"));
+          const title = String(call.args?.title ?? "");
+          const content = String(call.args?.content ?? "");
+          try {
+            if (!(format in FILE_FORMAT_EXTENSIONS)) {
+              throw new Error(`Định dạng "${format}" không hợp lệ — chỉ chấp nhận xlsx, pdf, docx.`);
+            }
+            const buffer = await generateFile(format, title, content);
+            const ext = FILE_FORMAT_EXTENSIONS[format];
+            const storagePath = `${taskId}/generated-${filename}.${ext}`;
+            const { error: uploadError } = await supabase.storage
+              .from(ATTACHMENTS_BUCKET)
+              .upload(storagePath, buffer, { contentType: FILE_FORMAT_MIME_TYPES[format], upsert: true });
+            if (uploadError) throw new Error(uploadError.message);
+            generatedFile = { path: storagePath, name: `${filename}.${ext}` };
+            responseParts.push({
+              functionResponse: { name: call.name, response: { output: `Đã tạo file "${filename}.${ext}" thành công.` } },
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({
+              functionResponse: { name: call.name, response: { error: `KHÔNG tạo được file (${message}). Báo lỗi này cho người dùng.` } },
+            });
+          }
+          continue;
+        }
+
         const targetName = String(call.args?.agent_name ?? "");
         const instructions = String(call.args?.instructions ?? "").trim();
         const target = directReports.find((r) => r.name === targetName);
@@ -460,11 +526,19 @@ export async function runAgentConversation(params: {
       }
     }
 
-    await supabase.from("tasks").update({ status: "done", output: finalText }).eq("id", taskId);
+    await supabase
+      .from("tasks")
+      .update({
+        status: "done",
+        output: finalText,
+        output_file_path: generatedFile?.path ?? null,
+        output_file_name: generatedFile?.name ?? null,
+      })
+      .eq("id", taskId);
     await supabase.from("audit_log").insert({ actor: userId, action: "run_task", target: agent.name, input, output: finalText });
     await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "idle" });
 
-    return { output: finalText, delegatedTo };
+    return { output: finalText, delegatedTo, generatedFile };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
     await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", taskId);

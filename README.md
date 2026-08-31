@@ -294,16 +294,41 @@ Gemini API" bên dưới.
     `SUPABASE_SERVICE_ROLE_KEY` đã thêm ở mục Google Places phía trên.
   - File HTML đã sửa được gửi riêng cho founder — chỉ cần re-upload/redeploy đúng file đó lên
     Netlify, thay cho bản tĩnh cũ.
+- **Agent xuất file thật (Excel/PDF/Word) thay vì chỉ trả lời chữ**
+  (`src/lib/file-generator.ts`, công cụ `generate_file` trong `agent-runner.ts`,
+  `supabase/migrations/0020_task_file_output.sql`): mọi agent có system prompt đều có công cụ
+  này (không cần bật riêng như các công cụ khác) — cứ nói rõ trong "Giao việc" là cần xuất ra
+  dạng gì (VD: "làm bảng Excel", "xuất file PDF báo cáo"), agent sẽ tự viết nội dung dạng
+  Markdown đơn giản (tiêu đề, đoạn văn, bảng kiểu pipe table) rồi hệ thống dựng thành file thật
+  — không nhờ AI tự "vẽ" file, tránh sai định dạng.
+  - File được lưu vào đúng bucket `task-attachments` đã có sẵn (như file đính kèm), link tải về
+    là link ký (signed URL) hết hạn sau 1 giờ, tạo mới mỗi lần cần (xem kết quả "Giao việc" hoặc
+    mục "Lịch sử giao việc" bên dưới).
+  - **PDF tiếng Việt**: pdfkit mặc định dùng font PDF chuẩn (Helvetica...) không có đủ dấu tiếng
+    Việt — dự án nhúng sẵn font DejaVu Sans (`node_modules/dejavu-fonts-ttf`, cài qua npm, không
+    phải tự tải file font) vì đã thử font "Vietnamese subset" của Google Fonts (qua gói
+    `@fontsource`) và phát hiện nó thiếu cả chữ cái La-tinh thường (a-z) do cách Google tách nhỏ
+    font theo unicode-range cho web — chỉ DejaVu Sans (font đầy đủ, không tách nhỏ) hiển thị
+    đúng khi test bằng cách render thử ra ảnh. File/Word không cần nhúng font (Word/Excel dùng
+    font máy người xem, tiếng Việt hiển thị bình thường).
+  - `next.config.ts` có `outputFileTracingIncludes` ép Next.js đóng gói file font `.ttf` này vào
+    bản deploy — thiếu dòng này thì chạy `npm run dev` local vẫn work nhưng lên Vercel sẽ lỗi
+    500 khi tạo PDF vì Next tự động loại các file không được import tĩnh ra khỏi gói serverless.
+  - **Cần chạy `supabase/migrations/0020_task_file_output.sql`** trên Supabase SQL Editor trước
+    khi dùng — chỉ thêm 2 cột lưu đường dẫn/tên file trên bảng `tasks`.
+- **Lịch sử giao việc không bị mất khi tắt màn hình**
+  (`src/lib/actions/task-history.ts`, `task-history-panel.tsx`): trước đây kết quả "Giao việc"
+  chỉ tồn tại trong bộ nhớ tạm của trình duyệt (state React) — tắt tab/màn hình là mất, dù dữ
+  liệu vẫn nằm trong Supabase (dùng để agent "nhớ" các lần trước). Giờ mỗi agent có mục "Lịch sử
+  giao việc" (bấm mở ra) xem lại tối đa 30 lần gần nhất — kèm cả ảnh/file đã tạo nếu có — bất kể
+  đã đóng trình duyệt bao lâu, miễn còn đăng nhập được.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
       "Agent tự giao lại việc" ở trên; file đính kèm gốc thì chưa chuyển theo, chỉ có nội
       dung chữ được giao lại).
-- [ ] Panel agent chưa hiện lại danh sách lịch sử task cũ để xem trực tiếp (agent đã "nhớ"
-      khi trả lời, nhưng người dùng chưa xem lại được danh sách các lần giao việc trước đó
-      ngay trên UI — phải xem qua Supabase Table Editor, bảng `tasks`).
-- [ ] Task hiện chạy 1 lần, không có bộ nhớ hội thoại (mỗi lần giao việc là 1 lượt độc lập,
-      không nhớ các lần giao việc trước) và panel chưa hiện lại lịch sử task cũ của agent.
+- [x] ~~Panel agent chưa hiện lại danh sách lịch sử task cũ để xem trực tiếp~~ (đã xây — mục
+      "Lịch sử giao việc không bị mất khi tắt màn hình" ở trên).
 - [ ] Chưa có UI sửa/xoá company/department/agent (mới có tạo mới); sửa/xoá qua Supabase
       Table Editor trong lúc chưa có UI quản trị đầy đủ.
 - [ ] Chưa có UI gán role/business_unit_id cho user mới (mặc định mọi user mới là `staff`,

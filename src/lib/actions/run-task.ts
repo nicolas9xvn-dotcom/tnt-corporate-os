@@ -4,8 +4,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import type { GeminiAttachment } from "@/lib/gemini";
 import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST, type DelegatedResult, type GeneratedImage } from "./agent-runner";
+import { createFileDownloadUrl } from "./file-downloads";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
+
+export interface GeneratedFileResult {
+  name: string;
+  downloadUrl: string;
+}
 
 export interface RunTaskResult {
   error: string | null;
@@ -13,6 +19,7 @@ export interface RunTaskResult {
   pendingApproval?: boolean;
   delegatedTo?: DelegatedResult[];
   generatedImage?: GeneratedImage;
+  generatedFile?: GeneratedFileResult;
 }
 
 export interface DraftResult {
@@ -171,8 +178,20 @@ export async function runAgentTask(
       await supabase.storage.from(ATTACHMENTS_BUCKET).remove(attachments.map((a) => a.path));
     }
 
+    let generatedFile: GeneratedFileResult | undefined;
+    if (result.generatedFile) {
+      const downloadUrl = await createFileDownloadUrl(supabase, result.generatedFile.path);
+      if (downloadUrl) generatedFile = { name: result.generatedFile.name, downloadUrl };
+    }
+
     revalidatePath("/dashboard");
-    return { error: null, output: result.output, delegatedTo: result.delegatedTo, generatedImage: result.generatedImage };
+    return {
+      error: null,
+      output: result.output,
+      delegatedTo: result.delegatedTo,
+      generatedImage: result.generatedImage,
+      generatedFile,
+    };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
     return { error: message };
