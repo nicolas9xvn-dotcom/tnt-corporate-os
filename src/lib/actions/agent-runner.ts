@@ -30,6 +30,33 @@ export const MAX_DELEGATIONS_PER_REQUEST = 6;
 // (decide once, synthesize once) without letting one level loop forever.
 const MAX_TOOL_ROUNDS = 2;
 
+// Gemini occasionally returns 503 UNAVAILABLE ("This model is currently
+// experiencing high demand... usually temporary") — a transient server
+// overload, completely different from running out of quota (429, handled
+// by the DeepSeek/Grok/OpenAI fallback below). An agent that can delegate
+// never reaches that fallback (see hasRealTools below), so without this a
+// brief Google-side spike fails the whole task outright even though
+// retrying seconds later would just work. Real error shape from the SDK is
+// unconfirmed (this sandbox can't reach the API), so this checks both a
+// possible top-level status and the stringified message text.
+function isOverloadedError(err: unknown): boolean {
+  const status = (err as { status?: number | string })?.status;
+  if (status === 503 || status === "UNAVAILABLE") return true;
+  const message = err instanceof Error ? err.message : String(err);
+  return /"code"\s*:\s*503|UNAVAILABLE|overloaded|high demand/i.test(message);
+}
+
+async function withOverloadRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 1500): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries || !isOverloadedError(err)) throw err;
+      await new Promise((resolve) => setTimeout(resolve, baseDelayMs * (attempt + 1)));
+    }
+  }
+}
+
 type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
 
 export interface RunnerAgent {
@@ -129,14 +156,16 @@ async function generateAgentImage(
   input: string,
   attachments: GeminiAttachment[]
 ): Promise<{ text: string; image: GeneratedImage }> {
-  const response = await ai.models.generateContent({
-    model: IMAGE_MODEL,
-    contents: [
-      { text: input },
-      ...attachments.map((a) => ({ inlineData: { mimeType: a.mimeType, data: a.base64 } })),
-    ],
-    config: { systemInstruction, responseModalities: [Modality.TEXT, Modality.IMAGE] },
-  });
+  const response = await withOverloadRetry(() =>
+    ai.models.generateContent({
+      model: IMAGE_MODEL,
+      contents: [
+        { text: input },
+        ...attachments.map((a) => ({ inlineData: { mimeType: a.mimeType, data: a.base64 } })),
+      ],
+      config: { systemInstruction, responseModalities: [Modality.TEXT, Modality.IMAGE] },
+    })
+  );
 
   const parts = response.candidates?.[0]?.content?.parts ?? [];
   const imagePart = parts.find((p) => p.inlineData?.data);
@@ -320,11 +349,13 @@ export async function runAgentConversation(params: {
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
       try {
-        response = await ai.models.generateContent({
-          model: MODEL,
-          contents,
-          config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
-        });
+        response = await withOverloadRetry(() =>
+          ai.models.generateContent({
+            model: MODEL,
+            contents,
+            config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS, tools },
+          })
+        );
       } catch (err) {
         // Falls back whenever the agent has none of the "real" tools (no
         // delegation, no Firebase/competitor data reads) — generate_file is
@@ -517,11 +548,13 @@ export async function runAgentConversation(params: {
       contents.push({ role: "user", parts: responseParts });
 
       if (round === MAX_TOOL_ROUNDS - 1) {
-        const closing = await ai.models.generateContent({
-          model: MODEL,
-          contents,
-          config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS },
-        });
+        const closing = await withOverloadRetry(() =>
+          ai.models.generateContent({
+            model: MODEL,
+            contents,
+            config: { systemInstruction, maxOutputTokens: MAX_OUTPUT_TOKENS },
+          })
+        );
         finalText = closing.text ?? "";
       }
     }
@@ -540,7 +573,11 @@ export async function runAgentConversation(params: {
 
     return { output: finalText, delegatedTo, generatedFile };
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
+    const message = isOverloadedError(err)
+      ? "Gemini đang quá tải tạm thời (lỗi từ phía Google, đã tự thử lại nhưng vẫn chưa được) — thử giao lại việc này sau vài phút."
+      : err instanceof Error
+        ? err.message
+        : "Gọi Gemini API thất bại.";
     await supabase.from("tasks").update({ status: "failed", output: message }).eq("id", taskId);
     await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "error" });
     throw err;
