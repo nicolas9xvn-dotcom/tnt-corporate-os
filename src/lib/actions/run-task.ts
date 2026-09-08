@@ -10,6 +10,7 @@ import type { TaskAttachment } from "@/lib/types";
 
 export interface GeneratedFileResult {
   name: string;
+  path: string;
   downloadUrl: string;
 }
 
@@ -181,7 +182,7 @@ export async function runAgentTask(
     let generatedFile: GeneratedFileResult | undefined;
     if (result.generatedFile) {
       const downloadUrl = await createFileDownloadUrl(supabase, result.generatedFile.path);
-      if (downloadUrl) generatedFile = { name: result.generatedFile.name, downloadUrl };
+      if (downloadUrl) generatedFile = { name: result.generatedFile.name, path: result.generatedFile.path, downloadUrl };
     }
 
     revalidatePath("/dashboard");

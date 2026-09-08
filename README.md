@@ -322,6 +322,24 @@ Gemini API" bên dưới.
   liệu vẫn nằm trong Supabase (dùng để agent "nhớ" các lần trước). Giờ mỗi agent có mục "Lịch sử
   giao việc" (bấm mở ra) xem lại tối đa 30 lần gần nhất — kèm cả ảnh/file đã tạo nếu có — bất kể
   đã đóng trình duyệt bao lâu, miễn còn đăng nhập được.
+- **3 màn hình Knowledge Base / Báo cáo / Quyết định HĐQT** — bảng + RLS đã có từ migration
+  0001/0002 (Phase 1) nhưng chưa có giao diện; giờ có link trên header ("Knowledge Base",
+  "Báo cáo", "Quyết định HĐQT" — mục cuối chỉ chairman thấy) dẫn tới:
+  - `/dashboard/knowledge` (`src/lib/actions/knowledge.ts`): ghi chú/kinh nghiệm dùng chung,
+    ai trong công ty cũng thêm được, gắn được với 1 phòng ban cụ thể (tuỳ chọn).
+  - `/dashboard/reports` (`src/lib/actions/reports.ts`,
+    `supabase/migrations/0021_report_file_output.sql`): viết báo cáo tay, hoặc bấm **"Tạo báo
+    cáo tổng quan tự động"** — gửi thẳng 1 "Giao việc" đã soạn sẵn cho CEO của công ty con đang
+    xem, yêu cầu CEO tự hỏi Kế toán (doanh thu thật), tự đọc lịch trống hôm nay, hỏi Chiến lược
+    Giá & Dịch vụ (vị thế đối thủ) rồi tổng hợp + xuất PDF bằng `generate_file` — không có logic
+    mới nào ở tầng dưới cả, chỉ ghép lại đúng những công cụ agent đã có (delegate_to_agent,
+    can_read_schedule, generate_file) thành 1 nút bấm. Chỉ hoạt động nếu công ty con đó có agent
+    cấp executive với đúng các quyền/cấp dưới đó (hiện tại là AME29) — công ty con khác chưa có
+    những agent này thì nút không hiện.
+  - `/dashboard/decisions`: nhật ký quyết định cấp tập đoàn (title/bối cảnh/đề xuất/quyết
+    định/lý do) — chairman-only theo đúng RLS `decisions_chairman_only` có sẵn.
+  - **Cần chạy `supabase/migrations/0021_report_file_output.sql`** trên Supabase SQL Editor
+    (chỉ thêm 2 cột file trên bảng `reports`, giống cách `tasks` đã có).
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
@@ -340,8 +358,8 @@ Gemini API" bên dưới.
       đã điền cho AME29 — xem trên.)
 - [ ] Chưa có bảng `workflows` riêng cho Google Review workflow (chỉ mới cơ chế approval
       1/2/3 chung, dùng `tasks.status` — xem trên).
-- [ ] Knowledge Base / Report / Decision Log: bảng + RLS đã có, nhưng chưa có màn hình để
-      tạo/xem — chỉ mới có ở tầng database (Task giờ đã hoạt động thật, xem trên).
+- [x] ~~Knowledge Base / Report / Decision Log: bảng + RLS đã có, nhưng chưa có màn hình để
+      tạo/xem~~ (đã xây — mục "3 màn hình Knowledge Base / Báo cáo / Quyết định HĐQT" ở trên).
 - [ ] Phase 2 trở đi (Executive Board, Red Team, Audit Log UI, tích hợp Google Maps / kế
       toán / n8n): chưa làm.
 

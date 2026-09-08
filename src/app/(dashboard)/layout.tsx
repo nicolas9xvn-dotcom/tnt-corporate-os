@@ -39,10 +39,25 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         </div>
 
         <div className="flex items-center gap-4 text-sm">
-          {currentUser && (currentUser.role === "chairman" || currentUser.role === "ceo") && (
-            <Link href="/dashboard/competitors" className="hidden text-slate-400 transition hover:text-cyan-300 sm:inline">
-              Dữ liệu đối thủ
-            </Link>
+          {currentUser && (
+            <nav className="hidden items-center gap-4 sm:flex">
+              {(currentUser.role === "chairman" || currentUser.role === "ceo") && (
+                <Link href="/dashboard/competitors" className="text-slate-400 transition hover:text-cyan-300">
+                  Dữ liệu đối thủ
+                </Link>
+              )}
+              <Link href="/dashboard/knowledge" className="text-slate-400 transition hover:text-cyan-300">
+                Knowledge Base
+              </Link>
+              <Link href="/dashboard/reports" className="text-slate-400 transition hover:text-cyan-300">
+                Báo cáo
+              </Link>
+              {currentUser.role === "chairman" && (
+                <Link href="/dashboard/decisions" className="text-slate-400 transition hover:text-cyan-300">
+                  Quyết định HĐQT
+                </Link>
+              )}
+            </nav>
           )}
           {currentUser && (
             <span className="hidden text-slate-400 sm:inline">
