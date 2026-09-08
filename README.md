@@ -353,9 +353,11 @@ Gemini API" bên dưới.
       không thuộc business unit nào — chairman phải tự sửa trong Supabase Table Editor).
 - [x] ~~4 role quản lý mới chưa có system prompt~~ (đã điền — xem `0007_manager_prompts.sql`
       ở trên).
-- [ ] `responsibilities/tools/kpi/escalation_note` đã có cột trong schema nhưng chưa điền
-      giá trị thật cho từng agent — cần founder quyết định, không tự suy đoán. (`approval_level`
-      đã điền cho AME29 — xem trên.)
+- [x] ~~`responsibilities/tools/kpi/escalation_note` đã có cột trong schema nhưng chưa điền
+      giá trị thật cho từng agent~~ (đã điền cho cả 19 agent AME29 —
+      `supabase/migrations/0022_agent_role_details.sql`, soạn dựa trên system_prompt và
+      reports_to đã có sẵn của từng agent, không bịa thêm dữ kiện kinh doanh mới — founder nên
+      đọc lại và sửa nếu có chỗ không đúng thực tế. `approval_level` đã điền cho AME29 — xem trên.)
 - [ ] Chưa có bảng `workflows` riêng cho Google Review workflow (chỉ mới cơ chế approval
       1/2/3 chung, dùng `tasks.status` — xem trên).
 - [x] ~~Knowledge Base / Report / Decision Log: bảng + RLS đã có, nhưng chưa có màn hình để
