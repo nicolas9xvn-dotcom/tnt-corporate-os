@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getAgentTaskHistory, type TaskHistoryItem } from "@/lib/actions/task-history";
+import { MarkdownOutput, SpeakButton } from "./agent-output";
 
 const STATUS_LABELS: Record<string, string> = {
   done: "Xong",
@@ -68,9 +69,14 @@ export function TaskHistoryPanel({ agentId }: { agentId: string }) {
                   </span>
                 )}
               </div>
-              <p className="mt-1.5 whitespace-pre-line text-slate-300">{item.input}</p>
+              <MarkdownOutput content={item.input} className="mt-1.5 text-xs leading-relaxed text-slate-300" />
               {item.output && (
-                <p className="mt-1.5 whitespace-pre-line border-t border-slate-800/80 pt-1.5 text-slate-400">{item.output}</p>
+                <div className="mt-1.5 border-t border-slate-800/80 pt-1.5">
+                  <div className="flex justify-end">
+                    <SpeakButton text={item.output} />
+                  </div>
+                  <MarkdownOutput content={item.output} className="text-xs leading-relaxed text-slate-400" />
+                </div>
               )}
               {item.imageDownloadUrl && (
                 // eslint-disable-next-line @next/next/no-img-element -- signed Storage URL, not an optimizable static asset

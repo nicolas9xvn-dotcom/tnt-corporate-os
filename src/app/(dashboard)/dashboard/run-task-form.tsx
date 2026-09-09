@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import type { DelegatedResult, GeneratedImage } from "@/lib/actions/agent-runner";
 import type { TaskAttachment } from "@/lib/types";
+import { MarkdownOutput, SpeakButton } from "./agent-output";
 
 const MAX_FILES = 5;
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20MB per file
@@ -222,10 +223,13 @@ export function RunTaskForm({
 
       {output && (
         <div className="mt-2">
-          <p className="hud-eyebrow text-[0.65rem]">Kết quả</p>
-          <p className="mt-1 whitespace-pre-line rounded-md border border-cyan-900/40 bg-slate-950/60 p-2.5 text-sm leading-relaxed text-slate-200">
-            {output}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="hud-eyebrow text-[0.65rem]">Kết quả</p>
+            <SpeakButton text={output} />
+          </div>
+          <div className="mt-1 rounded-md border border-cyan-900/40 bg-slate-950/60 p-2.5">
+            <MarkdownOutput content={output} />
+          </div>
         </div>
       )}
 
@@ -238,8 +242,11 @@ export function RunTaskForm({
                 key={`${d.agentName}-${i}`}
                 className="rounded-md border border-violet-900/40 bg-slate-950/60 p-2.5 text-xs leading-relaxed"
               >
-                <span className="font-semibold text-violet-300">{d.agentName}</span>
-                <p className="mt-1 whitespace-pre-line text-slate-300">{d.output}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-violet-300">{d.agentName}</span>
+                  <SpeakButton text={d.output} />
+                </div>
+                <MarkdownOutput content={d.output} className="mt-1 text-xs leading-relaxed text-slate-300" />
               </li>
             ))}
           </ul>

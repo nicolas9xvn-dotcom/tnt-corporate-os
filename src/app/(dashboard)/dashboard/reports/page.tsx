@@ -3,6 +3,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createFileDownloadUrl } from "@/lib/actions/file-downloads";
 import { ReportForm } from "./report-form";
 import { OverviewReportButton } from "./overview-report-button";
+import { MarkdownOutput, SpeakButton } from "../agent-output";
 
 function formatTime(iso: string): string {
   return new Date(iso).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
@@ -75,8 +76,11 @@ export default async function ReportsPage() {
           <ul className="mt-3 flex flex-col gap-2">
             {reports.map((r) => (
               <li key={r.id} className="rounded-md border border-slate-800 bg-slate-950/60 p-3 text-sm">
-                <p className="text-xs text-slate-500">{formatTime(r.created_at)}</p>
-                <p className="mt-1.5 whitespace-pre-line text-slate-300">{r.text}</p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs text-slate-500">{formatTime(r.created_at)}</p>
+                  <SpeakButton text={r.text} />
+                </div>
+                <MarkdownOutput content={r.text} className="mt-1.5 text-sm leading-relaxed text-slate-300" />
                 {r.downloadUrl && (
                   <a
                     href={r.downloadUrl}

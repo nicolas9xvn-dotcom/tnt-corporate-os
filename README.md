@@ -350,6 +350,17 @@ Gemini API" bên dưới.
     định/lý do) — chairman-only theo đúng RLS `decisions_chairman_only` có sẵn.
   - **Cần chạy `supabase/migrations/0021_report_file_output.sql`** trên Supabase SQL Editor
     (chỉ thêm 2 cột file trên bảng `reports`, giống cách `tasks` đã có).
+- **Câu trả lời hiển thị đẹp hơn (Markdown) + nghe được thay vì phải đọc**
+  (`src/app/(dashboard)/dashboard/agent-output.tsx`, dùng `react-markdown` +
+  `remark-gfm`): trước đây kết quả agent trả về hiện nguyên chữ thô — có `**`, `#`, `|` lộ ra
+  thay vì in đậm/tiêu đề/bảng. Giờ toàn bộ chỗ hiện kết quả agent (mục "Kết quả" khi giao việc,
+  "Đã giao lại cho" khi CEO uỷ quyền, "Lịch sử giao việc", báo cáo trong "Báo cáo") tự render
+  đúng định dạng — khớp với việc agent vốn đã được dạy viết Markdown cho `generate_file`.
+  - Mỗi chỗ có nút **"🔊 Nghe"** — đọc to câu trả lời bằng giọng đọc có sẵn của trình duyệt
+    (Web Speech API, `lang: "vi-VN"`), miễn phí hoàn toàn, không gọi API nào, không tốn chi phí.
+    Chỉ hiện nếu trình duyệt hỗ trợ (hầu hết trình duyệt hiện đại trên máy tính/điện thoại đều
+    có); bấm lần nữa để dừng đọc giữa chừng.
+  - Không cần chạy migration nào — chỉ là giao diện, không đổi schema.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
