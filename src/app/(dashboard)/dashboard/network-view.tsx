@@ -169,16 +169,19 @@ function AgentNodeCard({ data }: NodeProps<Node<AgentNodeData>>) {
         isRunning
           ? "hud-node-active border-cyan-400/80 bg-cyan-950/60"
           : showContributedBadge
-            ? "border-emerald-400/80 bg-emerald-950/30 shadow-[0_0_22px_-6px_rgba(52,211,153,0.7)]"
+            ? "animate-pulse border-2 border-emerald-400 bg-emerald-950/40 shadow-[0_0_28px_-4px_rgba(52,211,153,0.9)]"
             : isExecutive
               ? "border-cyan-500/70 bg-cyan-950/50 shadow-[0_0_32px_-6px_rgba(34,211,238,0.8)]"
               : "border-cyan-900/40 bg-slate-950/70 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.6)]"
       }`}
     >
       {showContributedBadge && (
-        <span className="absolute -top-2 -right-2 flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500 px-2 py-0.5 text-[0.6rem] font-bold text-slate-950 shadow-[0_0_8px_1px_rgba(52,211,153,0.8)]">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-950" />
-          Mới
+        <span className="absolute -top-3 -right-3 z-10 flex items-center gap-1 rounded-full border-2 border-emerald-300 bg-emerald-500 px-2.5 py-1 text-[0.7rem] font-extrabold tracking-wide text-slate-950 shadow-[0_0_16px_3px_rgba(52,211,153,0.9)]">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-slate-950/70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-slate-950" />
+          </span>
+          MỚI
         </span>
       )}
       <Handle type="target" id="top" position={Position.Top} style={handleStyle} />
