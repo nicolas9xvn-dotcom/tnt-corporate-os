@@ -62,17 +62,52 @@ const NODE_WIDTH = 210;
 const NODE_HEIGHT = 96;
 const handleStyle = { opacity: 0, width: 1, height: 1 };
 
-type AgentNodeData = { agent: AgentTreeNode; department: Department | null };
+type AgentNodeData = { agent: AgentTreeNode; department: Department | null; justContributed: boolean };
 
-// Live agent status, kept in sync via Supabase Realtime — run-task.ts and
-// approvals.ts flip an agent's status to "running" for the duration of an
-// actual Gemini call, so this reflects real activity, not decoration.
-function useLiveAgentStatus(agents: Agent[]): Map<string, AgentStatus> {
+interface LiveAgentInfo {
+  status: AgentStatus;
+  lastTaskCompletedAt: string | null;
+}
+
+// How long a card keeps showing "Vừa xong việc" after finishing a task —
+// long enough to notice if you're glancing at the org chart right after
+// giao việc to the CEO (which may have delegated to several departments in
+// the same run), short enough that it reads as "just now", not stale state.
+const RECENT_CONTRIBUTION_WINDOW_MS = 3 * 60 * 1000;
+
+// Live agent status + last-completed timestamp, kept in sync via Supabase
+// Realtime — set_agent_status (called from agent-runner.ts, including for
+// every delegated sub-task under its OWN agent_id, not just the top-level
+// agent) stamps both columns, so a subordinate that only ran because the
+// CEO delegated to it lights up here too — this is what makes delegated
+// contributions visible on the org chart itself, not just buried inside
+// the CEO's own answer or a manually-opened "Lịch sử giao việc" panel.
+function useLiveAgentInfo(agents: Agent[]): { infoById: Map<string, LiveAgentInfo>; nowMs: number | null } {
   const businessUnitId = agents[0]?.business_unit_id ?? null;
   // Only overrides received live over Realtime — merged with `agents`
   // (the server-rendered snapshot) below, so there's nothing to
   // resynchronize when `agents` itself changes on navigation.
-  const [overrides, setOverrides] = useState<Map<string, AgentStatus>>(new Map());
+  const [overrides, setOverrides] = useState<Map<string, LiveAgentInfo>>(new Map());
+  // `Date.now()` can't be called during render (React treats that as an
+  // impure read) — so "now" lives in state instead, set from an effect,
+  // and re-set on a timer purely so time-based "just contributed" badges
+  // expire on their own even when no new Realtime event triggers a
+  // re-render. Starts null so the very first render (before the effect
+  // runs) never has to guess a timestamp.
+  const [nowMs, setNowMs] = useState<number | null>(null);
+
+  useEffect(() => {
+    const update = () => setNowMs(Date.now());
+    // Deferred via setTimeout(0) rather than called directly in the effect
+    // body — this is an async callback from the timer queue, same as the
+    // interval tick below, not a synchronous render-adjacent setState.
+    const initial = setTimeout(update, 0);
+    const interval = setInterval(update, 20_000);
+    return () => {
+      clearTimeout(initial);
+      clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     if (!businessUnitId) return;
@@ -90,8 +125,10 @@ function useLiveAgentStatus(agents: Agent[]): Map<string, AgentStatus> {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "agents", filter: `business_unit_id=eq.${businessUnitId}` },
         (payload) => {
-          const updated = payload.new as { id: string; status: AgentStatus };
-          setOverrides((prev) => new Map(prev).set(updated.id, updated.status));
+          const updated = payload.new as { id: string; status: AgentStatus; last_task_completed_at: string | null };
+          setOverrides((prev) =>
+            new Map(prev).set(updated.id, { status: updated.status, lastTaskCompletedAt: updated.last_task_completed_at })
+          );
         }
       )
       .subscribe();
@@ -101,19 +138,26 @@ function useLiveAgentStatus(agents: Agent[]): Map<string, AgentStatus> {
     };
   }, [businessUnitId]);
 
-  return useMemo(() => {
-    const merged = new Map(agents.map((a) => [a.id, a.status]));
-    for (const [id, status] of overrides) {
-      if (merged.has(id)) merged.set(id, status);
+  const infoById = useMemo(() => {
+    const merged = new Map(
+      agents.map((a) => [a.id, { status: a.status, lastTaskCompletedAt: a.last_task_completed_at }])
+    );
+    for (const [id, info] of overrides) {
+      if (merged.has(id)) merged.set(id, info);
     }
     return merged;
   }, [agents, overrides]);
+
+  return { infoById, nowMs };
 }
 
 function AgentNodeCard({ data }: NodeProps<Node<AgentNodeData>>) {
-  const { agent, department } = data;
+  const { agent, department, justContributed } = data;
   const isExecutive = agent.level === "executive";
   const isRunning = agent.status === "running";
+  // Only worth flagging once the run has actually finished — while it's
+  // still "running" the pulsing cyan state already says "working on it".
+  const showContributedBadge = justContributed && !isRunning;
 
   return (
     <div
@@ -121,14 +165,22 @@ function AgentNodeCard({ data }: NodeProps<Node<AgentNodeData>>) {
       tabIndex={0}
       data-hud-sound
       style={{ width: NODE_WIDTH }}
-      className={`cursor-pointer rounded-md border px-3.5 py-3 text-left backdrop-blur-sm transition-transform hover:scale-[1.03] ${
+      className={`relative cursor-pointer rounded-md border px-3.5 py-3 text-left backdrop-blur-sm transition-transform hover:scale-[1.03] ${
         isRunning
           ? "hud-node-active border-cyan-400/80 bg-cyan-950/60"
-          : isExecutive
-            ? "border-cyan-500/70 bg-cyan-950/50 shadow-[0_0_32px_-6px_rgba(34,211,238,0.8)]"
-            : "border-cyan-900/40 bg-slate-950/70 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.6)]"
+          : showContributedBadge
+            ? "border-emerald-400/80 bg-emerald-950/30 shadow-[0_0_22px_-6px_rgba(52,211,153,0.7)]"
+            : isExecutive
+              ? "border-cyan-500/70 bg-cyan-950/50 shadow-[0_0_32px_-6px_rgba(34,211,238,0.8)]"
+              : "border-cyan-900/40 bg-slate-950/70 shadow-[0_4px_18px_-6px_rgba(0,0,0,0.6)]"
       }`}
     >
+      {showContributedBadge && (
+        <span className="absolute -top-2 -right-2 flex items-center gap-1 rounded-full border border-emerald-400/80 bg-emerald-500 px-2 py-0.5 text-[0.6rem] font-bold text-slate-950 shadow-[0_0_8px_1px_rgba(52,211,153,0.8)]">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-950" />
+          Mới
+        </span>
+      )}
       <Handle type="target" id="top" position={Position.Top} style={handleStyle} />
       <Handle type="source" id="top" position={Position.Top} style={handleStyle} />
       <Handle type="target" id="right" position={Position.Right} style={handleStyle} />
@@ -270,7 +322,7 @@ function FlowCanvas({
 }) {
   const { setCenter, fitView } = useReactFlow();
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const statusById = useLiveAgentStatus(agents);
+  const { infoById: liveInfoById, nowMs } = useLiveAgentInfo(agents);
 
   const { nodes, edges, nodeDataById, reportsToIds } = useMemo(() => {
     const departmentsById = new Map(departments.map((d) => [d.id, d]));
@@ -285,9 +337,13 @@ function FlowCanvas({
     function walk(node: AgentTreeNode, parentPos?: RadialPosition) {
       const pos = positions.get(node.id) ?? { x: 0, y: 0 };
       const department = node.department_id ? departmentsById.get(node.department_id) ?? null : null;
-      const liveStatus = statusById.get(node.id) ?? node.status;
-      const liveNode: AgentTreeNode = { ...node, status: liveStatus };
-      const data: AgentNodeData = { agent: liveNode, department };
+      const liveInfo = liveInfoById.get(node.id);
+      const liveStatus = liveInfo?.status ?? node.status;
+      const lastCompletedAt = liveInfo?.lastTaskCompletedAt ?? node.last_task_completed_at;
+      const justContributed =
+        nowMs != null && lastCompletedAt != null && nowMs - new Date(lastCompletedAt).getTime() < RECENT_CONTRIBUTION_WINDOW_MS;
+      const liveNode: AgentTreeNode = { ...node, status: liveStatus, last_task_completed_at: lastCompletedAt };
+      const data: AgentNodeData = { agent: liveNode, department, justContributed };
       nodeDataById.set(node.id, data);
 
       nodes.push({
@@ -337,7 +393,7 @@ function FlowCanvas({
     roots.forEach((root) => walk(root));
 
     return { nodes, edges, nodeDataById, reportsToIds };
-  }, [agents, departments, statusById]);
+  }, [agents, departments, liveInfoById, nowMs]);
 
   const selectedData = selectedId ? (nodeDataById.get(selectedId) ?? null) : null;
 

@@ -64,6 +64,10 @@ export interface Agent {
   // prepended to every future call to this agent, separate from the
   // rolling task-history memory which can get pushed out over time.
   house_rules: string | null;
+  // Stamped by set_agent_status (migration 0023) whenever a task on this
+  // agent finishes (success or failure) — drives the "vừa xong việc" badge
+  // on its org-chart card, see network-view.tsx.
+  last_task_completed_at: string | null;
   created_at: string;
 }
 

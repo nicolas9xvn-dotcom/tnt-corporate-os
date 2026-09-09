@@ -322,6 +322,16 @@ Gemini API" bên dưới.
   liệu vẫn nằm trong Supabase (dùng để agent "nhớ" các lần trước). Giờ mỗi agent có mục "Lịch sử
   giao việc" (bấm mở ra) xem lại tối đa 30 lần gần nhất — kèm cả ảnh/file đã tạo nếu có — bất kể
   đã đóng trình duyệt bao lâu, miễn còn đăng nhập được.
+- **Nhãn "Mới" trên sơ đồ khi 1 agent vừa đóng góp ý kiến** (`supabase/migrations/
+  0023_agent_last_task_completed.sql`, `network-view.tsx`): khi CEO giao việc lại cho cấp dưới
+  (`delegate_to_agent`), phần việc đó vốn đã chạy thành 1 task thật gắn đúng agent cấp dưới —
+  nhưng trước đây chỉ thấy được nếu tự bấm vào đúng card đó rồi mở "Lịch sử giao việc". Giờ card
+  của agent nào vừa xong task (thành công hay lỗi) tự nổi viền xanh lá + nhãn "Mới" trong 3 phút,
+  cập nhật qua Supabase Realtime — nhìn cả sơ đồ là biết ngay phòng ban nào vừa "lên tiếng" trong
+  lần giao việc gần nhất, giống 1 cuộc họp thật, không cần bấm từng agent để kiểm tra.
+  - **Cần chạy `0023_agent_last_task_completed.sql`** trên Supabase SQL Editor — thay lại hàm
+    `set_agent_status` đã có (0009) để nó ghi thêm mốc thời gian, không cần sửa gì ở
+    `agent-runner.ts`.
 - **3 màn hình Knowledge Base / Báo cáo / Quyết định HĐQT** — bảng + RLS đã có từ migration
   0001/0002 (Phase 1) nhưng chưa có giao diện; giờ có link trên header ("Knowledge Base",
   "Báo cáo", "Quyết định HĐQT" — mục cuối chỉ chairman thấy) dẫn tới:
