@@ -428,7 +428,10 @@ commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thư�
    lần trước đó (bỏ qua, không cần làm gì thêm).
 3. Nếu vẫn không tự deploy: vào **Project Settings → Git** → bấm **Disconnect**, rồi kết nối
    lại đúng repo đó (tạo lại webhook từ đầu) — không ảnh hưởng đến Environment Variables hay
-   domain đã cấu hình, chỉ tạo lại đường dây báo "có code mới" giữa GitHub và Vercel.
+   domain đã cấu hình, chỉ tạo lại đường dây báo "có code mới" giữa GitHub và Vercel. Lưu ý:
+   bản thân việc disconnect/reconnect không tự deploy lại commit hiện có — cần push thêm 1
+   commit mới (hoặc dùng Vercel CLI `vercel --prod`) sau khi nối lại để kiểm tra webhook mới
+   đã hoạt động chưa.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
