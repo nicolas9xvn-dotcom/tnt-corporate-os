@@ -456,6 +456,26 @@ Gemini API" bên dưới.
     đăng bài lên TikTok/Facebook/Instagram thật (việc đó cần tài khoản developer riêng của từng
     nền tảng, phức tạp và rủi ro hơn hẳn, chưa làm) — founder tự đăng tay sau khi xem kết quả.
   - **Cần chạy `0027_generate_images_tool.sql`** trên Supabase SQL Editor.
+- **Knowledge Base giờ agent thật sự đọc được (mẫu báo cáo thuế, mẫu hợp đồng...)**
+  (hàm `loadRelevantKnowledge` trong `agent-runner.ts`): trước đây trang Knowledge Base
+  (`/dashboard/knowledge`) chỉ hiện lại cho NGƯỜI xem — không agent nào đọc được nó cả. Giờ mỗi
+  lần chạy việc, agent tự động "nhìn thấy" các ghi chú Knowledge Base liên quan (đúng phòng ban
+  của agent đó + các ghi chú dùng chung không gắn phòng ban nào) ngay trong system prompt, và
+  được dặn PHẢI tuân theo đúng mẫu/quy trình nếu có, không tự bịa mẫu khác.
+  - **Cách dùng cho Kế toán (mẫu báo cáo thuế) / Pháp lý (mẫu hợp đồng)**: vào
+    `/dashboard/knowledge`, thêm 1 ghi chú, dán/mô tả đúng mẫu thật (cấu trúc, các mục bắt
+    buộc, cách trình bày...), gắn đúng phòng ban (Kế toán/Pháp lý) — từ lần giao việc sau, agent
+    phòng đó tự đọc và tuân theo mẫu này. Không cần code mới, không cần migration.
+  - Giới hạn: tối đa 15 ghi chú gần nhất mỗi lần (để không làm prompt quá dài) — càng nhiều ghi
+    chú không liên quan trong Knowledge Base, ghi chú thật sự cần có thể bị đẩy ra ngoài giới
+    hạn này; nên giữ Knowledge Base gọn, đúng trọng tâm cho mỗi phòng ban.
+- **Lịch Content thật cho Marketing** (`/dashboard/content-calendar`, bảng `content_calendar`,
+  công cụ `get_content_calendar` trong `agent-runner.ts`, `supabase/migrations/0028_content_calendar.sql`):
+  màn hình mới để lưu lịch đăng bài/chiến dịch thật (tiêu đề, nền tảng, ngày, trạng thái
+  Nháp/Đã lên lịch/Đã đăng — bấm vào nhãn trạng thái để chuyển vòng). Content Director và 3
+  agent TikTok/Facebook/Instagram tự đọc lịch này (chỉ đọc, không tự thêm/sửa) trước khi đề
+  xuất content mới, tránh trùng hoặc quên lịch đã lên kế hoạch.
+  - **Cần chạy `0028_content_calendar.sql`** trên Supabase SQL Editor.
 
 **Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
 commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị

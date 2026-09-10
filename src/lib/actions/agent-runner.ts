@@ -6,6 +6,7 @@ import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
 import { getCompetitorData, COMPETITOR_TOPICS } from "@/lib/competitor-tools";
 import { getOwnReviews } from "@/lib/google-places";
+import { getContentCalendarItems } from "@/lib/content-calendar";
 import { generateFile, FILE_FORMAT_EXTENSIONS, FILE_FORMAT_MIME_TYPES, type FileFormat } from "@/lib/file-generator";
 import { parseAspectRatio, cropToAspectRatio } from "@/lib/image-crop";
 import type { GeminiAttachment } from "@/lib/gemini";
@@ -120,7 +121,13 @@ export interface RunnerAgent {
   // still write plain-text captions most of the time and only reach for an
   // image when the task actually calls for one.
   can_generate_images: boolean;
+  can_read_content_calendar: boolean;
   business_unit_id: string;
+  // Used only to scope which Knowledge Base entries (see
+  // loadRelevantKnowledge below) get folded into this agent's own system
+  // instruction — department-less executives (department_id null) still
+  // see every company-wide entry (department_id null on the entry side).
+  department_id: string | null;
 }
 
 // Combines the agent's core system prompt with any standing rule the
@@ -185,7 +192,7 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
   const { data } = await supabase
     .from("agents")
     .select(
-      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, business_unit_id"
+      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, can_read_content_calendar, business_unit_id, department_id"
     )
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
@@ -201,8 +208,35 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     can_read_competitors: r.can_read_competitors,
     can_read_own_reviews: r.can_read_own_reviews,
     can_generate_images: r.can_generate_images,
+    can_read_content_calendar: r.can_read_content_calendar,
     business_unit_id: r.business_unit_id,
+    department_id: r.department_id,
   }));
+}
+
+// Read-only, plain-text notes the founder (or anyone) already writes on
+// the existing Knowledge Base screen (/dashboard/knowledge) — previously
+// only ever displayed back to a human, never actually read by any agent.
+// Folding it into the system instruction turns it into real shared memory:
+// a founder can paste a real tax-report template into Kế toán's own
+// department entry, or a contract template into Pháp lý's, and that agent
+// will use it going forward without any new schema/UI. Scoped to this
+// agent's own department plus company-wide entries (department_id null on
+// the entry) — capped so it can't balloon the prompt indefinitely.
+const MAX_KNOWLEDGE_ENTRIES = 15;
+
+async function loadRelevantKnowledge(supabase: Supabase, businessUnitId: string, departmentId: string | null): Promise<string[]> {
+  let query = supabase
+    .from("knowledge_entries")
+    .select("text")
+    .eq("business_unit_id", businessUnitId)
+    .order("created_at", { ascending: false })
+    .limit(MAX_KNOWLEDGE_ENTRIES);
+
+  query = departmentId ? query.or(`department_id.is.null,department_id.eq.${departmentId}`) : query.is("department_id", null);
+
+  const { data } = await query;
+  return (data ?? []).map((row) => row.text as string);
 }
 
 // Generates a real image via Gemini's native image output — used only for
@@ -273,7 +307,12 @@ export async function runAgentConversation(params: {
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-    const systemInstruction = buildSystemInstruction(agent);
+    let systemInstruction = buildSystemInstruction(agent);
+
+    const knowledgeEntries = await loadRelevantKnowledge(supabase, agent.business_unit_id, agent.department_id);
+    if (knowledgeEntries.length > 0) {
+      systemInstruction += `\n\n--- KIẾN THỨC DÙNG CHUNG (Knowledge Base, do người trong công ty tự ghi) ---\n${knowledgeEntries.map((t) => `- ${t}`).join("\n")}\nNếu có mẫu/quy trình/quy định cụ thể ở trên liên quan đến việc đang làm, PHẢI tuân theo đúng mẫu/quy trình đó — không tự bịa ra mẫu khác.`;
+    }
 
     if (agent.image_generation) {
       const { text, image } = await generateAgentImage(ai, systemInstruction, input, attachments);
@@ -405,6 +444,14 @@ export async function runAgentConversation(params: {
         parametersJsonSchema: { type: "object", properties: {} },
       });
     }
+    if (agent.can_read_content_calendar) {
+      functionDeclarations.push({
+        name: "get_content_calendar",
+        description:
+          "Đọc lịch content/chiến dịch THẬT (bảng do người trong công ty tự lập ở trang Lịch Content) — xem trước khi đề xuất content mới để tránh trùng lịch hoặc quên bài đã lên kế hoạch.",
+        parametersJsonSchema: { type: "object", properties: {} },
+      });
+    }
     if (agent.can_generate_images) {
       functionDeclarations.push({
         name: "generate_image",
@@ -495,7 +542,8 @@ export async function runAgentConversation(params: {
           agent.can_read_revenue ||
           agent.can_read_competitors ||
           agent.can_read_own_reviews ||
-          agent.can_generate_images;
+          agent.can_generate_images ||
+          agent.can_read_content_calendar;
         if (!hasRealTools && isQuotaError(err)) {
           const fallback = await callFallbackProviders(systemInstruction, history, input, attachments);
           finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
@@ -597,6 +645,26 @@ export async function runAgentConversation(params: {
                 response: {
                   error: `KHÔNG lấy được review thật (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa tên khách hay nội dung review.`,
                 },
+              },
+            });
+          }
+          continue;
+        }
+
+        if (call.name === "get_content_calendar") {
+          try {
+            const items = await getContentCalendarItems(supabase, agent.business_unit_id);
+            const output =
+              items.length > 0
+                ? JSON.stringify(items)
+                : "Lịch content đang trống trong khoảng thời gian gần đây — nói thẳng là chưa có kế hoạch nào, không tự bịa ra lịch.";
+            responseParts.push({ functionResponse: { name: call.name, response: { output } } });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { error: `KHÔNG đọc được lịch content (${message}). Báo lỗi này thẳng cho người dùng.` },
               },
             });
           }

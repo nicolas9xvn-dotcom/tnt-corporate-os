@@ -40,7 +40,7 @@ export async function GET(request: Request) {
     const { data: ceoAgent } = await supabase
       .from("agents")
       .select(
-        "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, business_unit_id"
+        "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, can_read_content_calendar, business_unit_id, department_id"
       )
       .eq("business_unit_id", unit.id)
       .eq("level", "executive")
@@ -97,7 +97,9 @@ export async function GET(request: Request) {
           can_read_competitors: ceoAgent.can_read_competitors,
           can_read_own_reviews: ceoAgent.can_read_own_reviews,
           can_generate_images: ceoAgent.can_generate_images,
+          can_read_content_calendar: ceoAgent.can_read_content_calendar,
           business_unit_id: ceoAgent.business_unit_id,
+          department_id: ceoAgent.department_id,
         },
         input: OVERVIEW_PROMPT,
         attachments: [],

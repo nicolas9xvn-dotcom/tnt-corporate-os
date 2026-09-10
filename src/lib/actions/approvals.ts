@@ -24,6 +24,8 @@ interface ApprovalAgent {
   can_read_competitors: boolean;
   can_read_own_reviews: boolean;
   can_generate_images: boolean;
+  can_read_content_calendar: boolean;
+  department_id: string | null;
 }
 
 // Level 2: the chairman or the ceo of that agent's own business unit can
@@ -61,7 +63,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
   const { data: task, error: taskError } = await supabase
     .from("tasks")
     .select(
-      "id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images)"
+      "id, agent_id, input, status, attachments, agents(name, system_prompt, approval_level, business_unit_id, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, can_read_content_calendar, department_id)"
     )
     .eq("id", taskId)
     .single();
@@ -104,7 +106,9 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
         can_read_competitors: agent.can_read_competitors,
         can_read_own_reviews: agent.can_read_own_reviews,
         can_generate_images: agent.can_generate_images,
+        can_read_content_calendar: agent.can_read_content_calendar,
         business_unit_id: agent.business_unit_id,
+        department_id: agent.department_id,
       },
       input: task.input ?? "",
       attachments: geminiAttachments,
