@@ -57,6 +57,43 @@ async function withOverloadRetry<T>(fn: () => Promise<T>, retries = 2, baseDelay
   }
 }
 
+interface CoordinationCheck {
+  stopped: boolean;
+  interjections: string[];
+}
+
+// Checked once per tool-calling round (2 cheap selects) so a founder
+// watching "Phòng họp" can redirect or halt a delegation chain without a
+// background worker — the whole chain already runs inside one synchronous
+// request/recursion, so polling the DB between rounds is enough to react
+// within a round or two. Only one recursion frame is ever actively running
+// at a time (delegate_to_agent awaits its subordinate before continuing),
+// so whichever agent is "on stage" right now is the one that picks up a
+// fresh stop flag or founder message for this session.
+async function checkCoordination(supabase: Supabase, rootTaskId: string): Promise<CoordinationCheck> {
+  const [{ data: rootTask }, { data: pending }] = await Promise.all([
+    supabase.from("tasks").select("stop_requested").eq("id", rootTaskId).maybeSingle(),
+    supabase
+      .from("task_messages")
+      .select("id, text")
+      .eq("root_task_id", rootTaskId)
+      .is("consumed_at", null)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (pending && pending.length > 0) {
+    await supabase
+      .from("task_messages")
+      .update({ consumed_at: new Date().toISOString() })
+      .in(
+        "id",
+        pending.map((m) => m.id)
+      );
+  }
+
+  return { stopped: rootTask?.stop_requested === true, interjections: (pending ?? []).map((m) => m.text) };
+}
+
 type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
 
 export interface RunnerAgent {
@@ -197,10 +234,15 @@ export async function runAgentConversation(params: {
   input: string;
   attachments: GeminiAttachment[];
   taskId: string;
+  // Id of the original top-level task that started this whole delegation
+  // chain (== taskId itself when depth is 0) — lets "Phòng họp" group every
+  // sub-task under one session, and lets the founder's stop/interject
+  // controls (see task 0024) target the whole chain instead of 1 agent.
+  rootTaskId: string;
   depth: number;
   budget: DelegationBudget;
 }): Promise<AgentConversationResult> {
-  const { supabase, userId, agent, input, attachments, taskId, depth, budget } = params;
+  const { supabase, userId, agent, input, attachments, taskId, rootTaskId, depth, budget } = params;
 
   await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "running" });
 
@@ -347,6 +389,17 @@ export async function runAgentConversation(params: {
     let generatedFile: GeneratedFile | undefined;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+      const coordination = await checkCoordination(supabase, rootTaskId);
+      if (coordination.stopped) {
+        finalText = "(Đã dừng theo yêu cầu điều phối viên trong Phòng họp.)";
+        await supabase.from("tasks").update({ status: "rejected", output: finalText }).eq("id", taskId);
+        await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "idle" });
+        return { output: finalText, delegatedTo };
+      }
+      for (const message of coordination.interjections) {
+        contents.push({ role: "user", parts: [{ text: `[Điều phối viên bổ sung giữa chừng]: ${message}` }] });
+      }
+
       let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
       try {
         response = await withOverloadRetry(() =>
@@ -512,6 +565,7 @@ export async function runAgentConversation(params: {
             status: "in_progress",
             input: instructions,
             parent_task_id: taskId,
+            root_task_id: rootTaskId,
           })
           .select("id")
           .single();
@@ -534,6 +588,7 @@ export async function runAgentConversation(params: {
             input: instructions,
             attachments: [],
             taskId: subTaskRow.id,
+            rootTaskId,
             depth: depth + 1,
             budget,
           });

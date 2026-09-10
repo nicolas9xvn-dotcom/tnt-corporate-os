@@ -6,6 +6,7 @@ import type { GeminiAttachment } from "@/lib/gemini";
 import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST } from "./agent-runner";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
+import { notifyTelegram } from "@/lib/telegram";
 
 export interface ApprovalResult {
   error: string | null;
@@ -104,6 +105,7 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
       input: task.input ?? "",
       attachments: geminiAttachments,
       taskId,
+      rootTaskId: taskId,
       depth: 0,
       budget: { remaining: MAX_DELEGATIONS_PER_REQUEST },
     });
@@ -118,9 +120,11 @@ export async function approveTask(taskId: string): Promise<ApprovalResult> {
     await cleanupAttachments(supabase, attachments);
 
     revalidatePath("/dashboard");
+    await notifyTelegram(`✅ ${agent.name} đã xong việc (sau khi duyệt):\n${(result.output ?? "").slice(0, 500)}`);
     return { error: null };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
+    await notifyTelegram(`⚠️ ${agent.name} gặp lỗi khi chạy việc (sau khi duyệt):\n${message.slice(0, 300)}`);
     return { error: message };
   }
 }

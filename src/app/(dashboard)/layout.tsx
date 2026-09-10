@@ -46,6 +46,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
                   Dữ liệu đối thủ
                 </Link>
               )}
+              <Link href="/dashboard/room" className="text-slate-400 transition hover:text-cyan-300">
+                Phòng họp
+              </Link>
               <Link href="/dashboard/knowledge" className="text-slate-400 transition hover:text-cyan-300">
                 Knowledge Base
               </Link>
