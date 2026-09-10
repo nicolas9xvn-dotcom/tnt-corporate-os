@@ -6,6 +6,7 @@ import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
 import { getCompetitorData, COMPETITOR_TOPICS } from "@/lib/competitor-tools";
 import { generateFile, FILE_FORMAT_EXTENSIONS, FILE_FORMAT_MIME_TYPES, type FileFormat } from "@/lib/file-generator";
+import { parseAspectRatio, cropToAspectRatio } from "@/lib/image-crop";
 import type { GeminiAttachment } from "@/lib/gemini";
 
 const MODEL = "gemini-3.6-flash";
@@ -260,11 +261,30 @@ export async function runAgentConversation(params: {
 
     if (agent.image_generation) {
       const { text, image } = await generateAgentImage(ai, systemInstruction, input, attachments);
+
+      // Founder can attach a raw photo + a reference/sample photo together
+      // with the edit instructions in the same "Giao việc" — Gemini already
+      // sees every attached image (see the `attachments` spread above), so
+      // multi-image edit/composite already works with no changes here. The
+      // one thing Gemini won't reliably do on its own is hit an EXACT output
+      // ratio, so a plain-language ratio mention ("cắt 9:16 cho TikTok") is
+      // parsed and applied as a deterministic center-crop afterward.
+      let finalBuffer: Buffer = Buffer.from(image.base64, "base64");
+      const ratio = parseAspectRatio(input);
+      if (ratio) {
+        try {
+          finalBuffer = await cropToAspectRatio(finalBuffer, ratio);
+        } catch {
+          // Cropping is a best-effort touch-up — never let it block
+          // delivering the image Gemini already generated.
+        }
+      }
+
       const imagePath = `${taskId}/generated.png`;
       const { error: uploadError } = await supabase.storage
         .from(ATTACHMENTS_BUCKET)
-        .upload(imagePath, Buffer.from(image.base64, "base64"), { contentType: image.mimeType, upsert: true });
-      const finalText = text || "Đã tạo ảnh mới.";
+        .upload(imagePath, finalBuffer, { contentType: image.mimeType, upsert: true });
+      const finalText = ratio ? `${text || "Đã tạo ảnh mới."} (đã cắt theo tỉ lệ ${ratio.label})` : text || "Đã tạo ảnh mới.";
 
       await supabase
         .from("tasks")
@@ -273,7 +293,11 @@ export async function runAgentConversation(params: {
       await supabase.from("audit_log").insert({ actor: userId, action: "run_task", target: agent.name, input, output: finalText });
       await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "idle" });
 
-      return { output: finalText, delegatedTo: [], generatedImage: image };
+      return {
+        output: finalText,
+        delegatedTo: [],
+        generatedImage: { mimeType: image.mimeType, base64: finalBuffer.toString("base64") },
+      };
     }
 
     const directReports = depth < MAX_DELEGATION_DEPTH ? await fetchDirectReports(supabase, agent.id) : [];

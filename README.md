@@ -417,6 +417,20 @@ Gemini API" bên dưới.
   - **Cần chạy `0025_task_queue.sql`** trên Supabase SQL Editor — tạo bảng `task_queue` mới.
   - **Cần deploy lại trên Vercel** để 2 cron job mới (`daily-report`, `process-queue`) trong
     `vercel.json` được đăng ký — Vercel chỉ đọc file này lúc deploy.
+- **Agent chỉnh sửa/ghép ảnh theo mẫu + tự cắt đúng tỉ lệ khung**
+  (`src/lib/image-crop.ts`, dùng trong nhánh `image_generation` của `agent-runner.ts`): agent
+  có bật tạo ảnh (`image_generation = true`, vd Đồ họa & Thương hiệu MỀU) vốn đã "nhìn thấy"
+  MỌI ảnh đính kèm khi giao việc (không chỉ 1 ảnh) — nên chỉ cần đính kèm cùng lúc **ảnh gốc +
+  ảnh mẫu**, rồi mô tả cách chỉnh/ghép trong ô nội dung, Gemini tự chỉnh/ghép theo cả 2 ảnh đó,
+  không cần thêm code mới cho phần này.
+  - Phần thêm mới: nếu trong nội dung giao việc có nhắc tới tỉ lệ khung (VD: "9:16", "16:9",
+    "1:1", hoặc chữ "dọc"/"ngang"/"vuông"/"tiktok"/"story"/"reels"/"youtube"), hệ thống tự cắt
+    ảnh Gemini trả về đúng khung đó — cắt thẳng theo giữa ảnh (center-crop bằng `sharp`, không
+    dùng AI đoán chủ thể), giữ nguyên độ phân giải gốc, không phóng to.
+  - Không nhận diện được tỉ lệ nào thì trả nguyên ảnh Gemini tạo ra, không cắt gì cả.
+  - Chưa làm: ghép nhiều ảnh thành video — mới dừng ở chỉnh/ghép ảnh tĩnh.
+  - Không cần chạy migration nào (không đổi schema) — chỉ cần `npm install` lại (thêm gói
+    `sharp`, quản lý ảnh) trước khi deploy nếu build ở máy khác.
 
 **Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
 commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị
@@ -432,6 +446,14 @@ commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thư�
    bản thân việc disconnect/reconnect không tự deploy lại commit hiện có — cần push thêm 1
    commit mới (hoặc dùng Vercel CLI `vercel --prod`) sau khi nối lại để kiểm tra webhook mới
    đã hoạt động chưa.
+4. Nếu bước 3 vẫn không ăn thua (từng gặp đúng trường hợp này — cả push lẫn disconnect/
+   reconnect đều không tạo được deployment mới trong nhiều giờ): thử **Deploy Hook** —
+   **Project Settings → Git → Deploy Hooks** → tạo 1 hook cho nhánh `main` → dán URL nó đưa ra
+   vào thanh địa chỉ trình duyệt và Enter (không cần cài gì thêm). Nếu việc này CŨNG không tạo
+   được deployment nào (kiểm tra qua **Project Settings → Activity**, tìm dòng "You deployed…"
+   mới), nghĩa là sự cố nằm ở phía hệ thống Vercel, không còn gì tự sửa được nữa — liên hệ
+   Vercel Support (vercel.com/help), kèm project ID (Settings → General → Project ID) và job id
+   deploy hook trả về.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

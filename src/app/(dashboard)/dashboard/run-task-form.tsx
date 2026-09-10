@@ -152,7 +152,10 @@ export function RunTaskForm({
         ra nhiều lần gửi, lần sau agent vẫn nhớ các lần trước. Nếu agent có cấp dưới, agent có
         thể tự giao lại việc phù hợp cho đúng người rồi tổng hợp kết quả trả lời bạn. Cần xuất
         ra file Excel/PDF/Word thay vì chỉ trả lời chữ — cứ nói rõ trong yêu cầu, agent sẽ tự
-        tạo file để tải về.
+        tạo file để tải về. Với agent biết tạo ảnh: đính kèm cùng lúc ảnh gốc + ảnh mẫu rồi mô
+        tả cách chỉnh/ghép trong ô bên dưới, ghi rõ tỉ lệ khung muốn xuất (VD: &quot;9:16&quot;
+        hoặc &quot;dọc&quot; cho TikTok, &quot;vuông&quot; cho Instagram) để agent tự cắt đúng
+        khung.
       </p>
       <form onSubmit={handleSubmit} className="mt-1.5 flex flex-col gap-2">
         <textarea
