@@ -5,6 +5,7 @@ import { callFallbackProviders, isQuotaError } from "./text-fallback";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import { getScheduleGaps, getRevenueReport } from "@/lib/firebase-tools";
 import { getCompetitorData, COMPETITOR_TOPICS } from "@/lib/competitor-tools";
+import { getOwnReviews } from "@/lib/google-places";
 import { generateFile, FILE_FORMAT_EXTENSIONS, FILE_FORMAT_MIME_TYPES, type FileFormat } from "@/lib/file-generator";
 import { parseAspectRatio, cropToAspectRatio } from "@/lib/image-crop";
 import type { GeminiAttachment } from "@/lib/gemini";
@@ -110,6 +111,15 @@ export interface RunnerAgent {
   can_read_schedule: boolean;
   can_read_revenue: boolean;
   can_read_competitors: boolean;
+  can_read_own_reviews: boolean;
+  // Distinct from `image_generation` (an older, all-or-nothing switch that
+  // makes an agent ONLY ever produce an image, bypassing the whole
+  // tool-calling loop below — see that branch further down). This one adds
+  // image output as a regular tool call alongside delegation/get_own_reviews
+  // /generate_file, so a content agent (TikTok/Facebook/Instagram) can
+  // still write plain-text captions most of the time and only reach for an
+  // image when the task actually calls for one.
+  can_generate_images: boolean;
   business_unit_id: string;
 }
 
@@ -136,6 +146,10 @@ function buildSystemInstruction(agent: RunnerAgent): string {
 
   if (agent.can_read_competitors) {
     instruction += `\n\n--- DỮ LIỆU ĐỐI THỦ THẬT, KHÔNG ĐƯỢC BỊA ---\nBạn có thể gọi hàm get_competitor_data để đọc dữ liệu khảo sát đối thủ THẬT (233 tiệm nail Nhật Bản, tổng hợp từ Google Maps/Hotpepper/Instagram/TikTok/Minimo do founder tự thu thập). Với MỌI câu hỏi về đối thủ, giá thị trường, hay định vị cạnh tranh: luôn gọi hàm này để lấy đúng số liệu — tuyệt đối không tự bịa tên tiệm, giá, rating, hay số review. Đây là dữ liệu khảo sát tại MỘT THỜI ĐIỂM (không phải real-time) — khi trả lời, có thể ghi rõ là "theo dữ liệu khảo sát", không khẳng định đây là giá/rating hiện tại của đối thủ ngay lúc này.`;
+  }
+
+  if (agent.can_read_own_reviews) {
+    instruction += `\n\n--- REVIEW GOOGLE MAPS THẬT, KHÔNG ĐƯỢC BỊA ---\nBạn có thể gọi hàm get_own_reviews để đọc review Google Maps THẬT của chính AME29 (tối đa 5 review "liên quan nhất" mà Google trả về — không phải toàn bộ lịch sử review). Với MỌI yêu cầu liên quan đến review/đánh giá của khách: luôn gọi hàm này lấy dữ liệu thật, tuyệt đối không tự bịa tên khách, nội dung, hay số sao. Nhiệm vụ của bạn CHỈ LÀ ĐỌC và SOẠN GỢI Ý câu trả lời cho từng review — bạn KHÔNG có khả năng tự đăng câu trả lời lên Google Maps thật, phải nói rõ đây là "gợi ý trả lời, founder tự copy sang Google Maps nếu đồng ý" chứ không được nói như thể đã đăng.`;
   }
 
   return instruction;
@@ -171,7 +185,7 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
   const { data } = await supabase
     .from("agents")
     .select(
-      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, business_unit_id"
+      "id, name, system_prompt, house_rules, image_generation, can_read_schedule, can_read_revenue, can_read_competitors, can_read_own_reviews, can_generate_images, business_unit_id"
     )
     .eq("reports_to", agentId)
     .not("system_prompt", "is", null);
@@ -185,6 +199,8 @@ async function fetchDirectReports(supabase: Supabase, agentId: string): Promise<
     can_read_schedule: r.can_read_schedule,
     can_read_revenue: r.can_read_revenue,
     can_read_competitors: r.can_read_competitors,
+    can_read_own_reviews: r.can_read_own_reviews,
+    can_generate_images: r.can_generate_images,
     business_unit_id: r.business_unit_id,
   }));
 }
@@ -381,6 +397,32 @@ export async function runAgentConversation(params: {
         },
       });
     }
+    if (agent.can_read_own_reviews) {
+      functionDeclarations.push({
+        name: "get_own_reviews",
+        description:
+          "Đọc review Google Maps THẬT của chính AME29 (tối đa 5 review gần đây/liên quan nhất theo Google trả về) — không tự suy đoán thêm. Chỉ đọc, không đăng được câu trả lời lên Google Maps thật.",
+        parametersJsonSchema: { type: "object", properties: {} },
+      });
+    }
+    if (agent.can_generate_images) {
+      functionDeclarations.push({
+        name: "generate_image",
+        description:
+          "Tạo hoặc chỉnh sửa 1 ảnh thật bằng AI (Gemini) — dùng khi công việc cần ra 1 hình ảnh cụ thể (ảnh minh họa cho bài đăng, chỉnh/ghép ảnh gốc + ảnh mẫu đã đính kèm...), không phải khi chỉ cần trả lời bằng chữ. Nếu có ảnh đính kèm trong lúc giao việc, ảnh đó tự động được dùng làm ảnh gốc/ảnh mẫu để chỉnh sửa.",
+        parametersJsonSchema: {
+          type: "object",
+          properties: {
+            prompt: {
+              type: "string",
+              description:
+                "Mô tả chi tiết ảnh muốn tạo/chỉnh — càng cụ thể càng tốt (chủ thể, phong cách, màu sắc, bố cục). Có thể nhắc tỉ lệ khung mong muốn (VD: 9:16, 1:1, 16:9, hoặc \"dọc\"/\"vuông\"/\"ngang\") để ảnh được cắt đúng khung.",
+            },
+          },
+          required: ["prompt"],
+        },
+      });
+    }
     // Available to every agent unconditionally (not gated behind a
     // can_generate_files flag like the tools above) — any task can turn
     // into "gửi cho tôi file Excel/PDF/Word" and there's no good way to
@@ -415,6 +457,8 @@ export async function runAgentConversation(params: {
     const delegatedTo: DelegatedResult[] = [];
     let finalText = "";
     let generatedFile: GeneratedFile | undefined;
+    let generatedImage: GeneratedImage | undefined;
+    let generatedImagePath: string | undefined;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const coordination = await checkCoordination(supabase, rootTaskId);
@@ -445,7 +489,13 @@ export async function runAgentConversation(params: {
         // degradation while Gemini's quota is out, versus never falling
         // back at all. The fallback providers below don't implement
         // Gemini's function calling either way (see text-fallback.ts).
-        const hasRealTools = canDelegate || agent.can_read_schedule || agent.can_read_revenue || agent.can_read_competitors;
+        const hasRealTools =
+          canDelegate ||
+          agent.can_read_schedule ||
+          agent.can_read_revenue ||
+          agent.can_read_competitors ||
+          agent.can_read_own_reviews ||
+          agent.can_generate_images;
         if (!hasRealTools && isQuotaError(err)) {
           const fallback = await callFallbackProviders(systemInstruction, history, input, attachments);
           finalText = `${fallback.text}\n\n[Gemini hết quota — câu trả lời này đến từ ${fallback.provider} thay thế.]`;
@@ -526,6 +576,68 @@ export async function runAgentConversation(params: {
                   error: `KHÔNG lấy được dữ liệu đối thủ (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa tên tiệm, giá, hay rating.`,
                 },
               },
+            });
+          }
+          continue;
+        }
+
+        if (call.name === "get_own_reviews") {
+          try {
+            const reviews = await getOwnReviews(supabase, agent.business_unit_id);
+            const output =
+              reviews.length > 0
+                ? JSON.stringify(reviews)
+                : "Không có review nào trả về — nói thẳng với người dùng là không có, không tự bịa ra review.";
+            responseParts.push({ functionResponse: { name: call.name, response: { output } } });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: {
+                  error: `KHÔNG lấy được review thật (${message}). Báo lỗi này thẳng cho người dùng — TUYỆT ĐỐI không tự bịa tên khách hay nội dung review.`,
+                },
+              },
+            });
+          }
+          continue;
+        }
+
+        if (call.name === "generate_image") {
+          const prompt = String(call.args?.prompt ?? "").trim();
+          try {
+            if (!prompt) throw new Error("Thiếu mô tả ảnh cần tạo.");
+            // Same attachments the founder attached to this "Giao việc"
+            // (raw photo + reference photo, if any) flow through here too —
+            // generateAgentImage already sees every one of them, so
+            // multi-image edit/composite works with no extra plumbing.
+            const { image } = await generateAgentImage(ai, systemInstruction, prompt, attachments);
+            let finalBuffer: Buffer = Buffer.from(image.base64, "base64");
+            const ratio = parseAspectRatio(prompt) ?? parseAspectRatio(input);
+            if (ratio) {
+              try {
+                finalBuffer = await cropToAspectRatio(finalBuffer, ratio);
+              } catch {
+                // Best-effort touch-up only — deliver the uncropped image.
+              }
+            }
+            const storagePath = `${taskId}/generated-${Date.now()}.png`;
+            const { error: uploadError } = await supabase.storage
+              .from(ATTACHMENTS_BUCKET)
+              .upload(storagePath, finalBuffer, { contentType: image.mimeType, upsert: true });
+            if (uploadError) throw new Error(uploadError.message);
+            generatedImage = { mimeType: image.mimeType, base64: finalBuffer.toString("base64") };
+            generatedImagePath = storagePath;
+            responseParts.push({
+              functionResponse: {
+                name: call.name,
+                response: { output: `Đã tạo ảnh thành công${ratio ? ` (đã cắt theo tỉ lệ ${ratio.label})` : ""}.` },
+              },
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "Lỗi không xác định.";
+            responseParts.push({
+              functionResponse: { name: call.name, response: { error: `KHÔNG tạo được ảnh (${message}). Báo lỗi này cho người dùng.` } },
             });
           }
           continue;
@@ -649,12 +761,13 @@ export async function runAgentConversation(params: {
         output: finalText,
         output_file_path: generatedFile?.path ?? null,
         output_file_name: generatedFile?.name ?? null,
+        output_image_path: generatedImagePath ?? null,
       })
       .eq("id", taskId);
     await supabase.from("audit_log").insert({ actor: userId, action: "run_task", target: agent.name, input, output: finalText });
     await supabase.rpc("set_agent_status", { p_agent_id: agent.id, p_status: "idle" });
 
-    return { output: finalText, delegatedTo, generatedFile };
+    return { output: finalText, delegatedTo, generatedFile, generatedImage };
   } catch (err) {
     const message = isOverloadedError(err)
       ? "Gemini đang quá tải tạm thời (lỗi từ phía Google, đã tự thử lại nhưng vẫn chưa được) — thử giao lại việc này sau vài phút."

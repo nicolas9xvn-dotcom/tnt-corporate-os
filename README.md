@@ -431,6 +431,31 @@ Gemini API" bên dưới.
   - Chưa làm: ghép nhiều ảnh thành video — mới dừng ở chỉnh/ghép ảnh tĩnh.
   - Không cần chạy migration nào (không đổi schema) — chỉ cần `npm install` lại (thêm gói
     `sharp`, quản lý ảnh) trước khi deploy nếu build ở máy khác.
+- **Google Maps Master đọc review Google Maps THẬT + soạn gợi ý trả lời**
+  (`can_read_own_reviews` trên bảng `agents`, hàm `getOwnReviews` trong `src/lib/google-places.ts`,
+  công cụ `get_own_reviews` trong `agent-runner.ts`, `supabase/migrations/0026_own_reviews.sql`):
+  founder chọn mức "chỉ đọc + soạn gợi ý" — Google Maps Master đọc review thật của chính AME29
+  (dùng lại đúng `GOOGLE_PLACES_API_KEY` đã có cho việc theo dõi rating đối thủ, không cần xin
+  quyền Google Business Profile phức tạp hơn) rồi tự soạn câu trả lời đề xuất cho từng review —
+  **không tự đăng gì lên Google Maps thật**, founder tự đọc rồi copy sang nếu đồng ý.
+  - Giới hạn cần biết: Google Places API chỉ trả về tối đa **5 review "liên quan nhất"** mỗi
+    lần gọi — không phải toàn bộ lịch sử review, chỉ là 1 lát cắt.
+  - **Cần cấu hình Place ID của chính AME29** trước khi dùng: vào `/dashboard/competitors`,
+    tìm dòng **"AME29 Nail (bản)"** (cột "Đối thủ" nhưng đây là dòng đại diện cho chính AME29,
+    dùng để so sánh), điền Google Place ID vào ô sẵn có rồi lưu — dùng chung ô nhập liệu đã có
+    sẵn cho việc đồng bộ rating, không cần UI mới.
+  - **Cần chạy `0026_own_reviews.sql`** trên Supabase SQL Editor.
+- **TikTok/Facebook/Instagram Agent tự tạo ảnh minh họa cho content (chưa tự đăng bài)**
+  (`can_generate_images` trên bảng `agents`, công cụ `generate_image` trong `agent-runner.ts`,
+  `supabase/migrations/0027_generate_images_tool.sql`): khác với `image_generation` (migration
+  0013 — làm agent CHỈ BAO GIỜ trả lời bằng ảnh, không viết chữ được nữa), `can_generate_images`
+  là 1 công cụ agent tự quyết định có dùng hay không trong lúc trả lời — nên 3 agent mạng xã hội
+  vẫn viết caption/kịch bản bằng chữ bình thường, chỉ gọi công cụ này khi việc thật sự cần ra 1
+  tấm ảnh. Dùng lại đúng cơ chế cắt tỉ lệ khung ở trên (`image-crop.ts`).
+  - Founder chọn mức "chỉ soạn content + ảnh, chưa tự đăng" — 3 agent này KHÔNG có khả năng tự
+    đăng bài lên TikTok/Facebook/Instagram thật (việc đó cần tài khoản developer riêng của từng
+    nền tảng, phức tạp và rủi ro hơn hẳn, chưa làm) — founder tự đăng tay sau khi xem kết quả.
+  - **Cần chạy `0027_generate_images_tool.sql`** trên Supabase SQL Editor.
 
 **Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
 commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị

@@ -28,6 +28,77 @@ async function fetchGooglePlace(placeId: string, apiKey: string): Promise<Google
   return res.json();
 }
 
+export interface OwnReview {
+  authorName: string;
+  rating: number | null;
+  text: string;
+  relativeTime: string;
+  publishTime: string | null;
+}
+
+interface GooglePlaceReviewsResult {
+  rating?: number;
+  userRatingCount?: number;
+  reviews?: Array<{
+    rating?: number;
+    text?: { text?: string };
+    relativePublishTimeDescription?: string;
+    publishTime?: string;
+    authorAttribution?: { displayName?: string };
+  }>;
+}
+
+// Reads AME29's OWN real reviews — reuses the same Places API (New) key
+// already required for competitor rating sync, no separate Google Business
+// Profile OAuth/verification needed (that API requires Google's approval
+// and owner sign-in; Places API's public "reviews" field works for any
+// place, including your own, with just an API key). The tradeoff: Google
+// only returns up to 5 "most relevant" reviews per place through this
+// endpoint — not the full review history — so this is a snapshot, not a
+// complete inbox.
+export async function getOwnReviews(supabase: SupabaseClient, businessUnitId: string): Promise<OwnReview[]> {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) {
+    throw new Error("Chưa cấu hình GOOGLE_PLACES_API_KEY — xem README.");
+  }
+
+  const { data: ownRow, error } = await supabase
+    .from("competitors")
+    .select("google_place_id")
+    .eq("business_unit_id", businessUnitId)
+    .eq("is_ame29", true)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`Không đọc được cấu hình Google Place ID: ${error.message}`);
+  }
+  const placeId = ownRow?.google_place_id as string | null | undefined;
+  if (!placeId) {
+    throw new Error(
+      "Chưa cấu hình Google Place ID cho AME29 — vào trang \"Dữ liệu đối thủ\", dòng \"AME29 Nail (bản)\", điền Place ID rồi lưu lại."
+    );
+  }
+
+  const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+    headers: {
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask": "rating,userRatingCount,reviews",
+    },
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Google Places API lỗi ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const place = (await res.json()) as GooglePlaceReviewsResult;
+
+  return (place.reviews ?? []).map((r) => ({
+    authorName: r.authorAttribution?.displayName ?? "Khách ẩn danh",
+    rating: r.rating ?? null,
+    text: r.text?.text ?? "",
+    relativeTime: r.relativePublishTimeDescription ?? "",
+    publishTime: r.publishTime ?? null,
+  }));
+}
+
 export interface CompetitorSyncResult {
   competitorId: string;
   name: string;
