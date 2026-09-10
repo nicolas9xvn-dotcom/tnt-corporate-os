@@ -32,38 +32,52 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   return (
     <div className="min-h-screen text-slate-100">
-      <header className="hud-panel mx-3 mt-3 flex items-center justify-between rounded-lg px-6 py-4 sm:mx-6 sm:mt-6">
+      <header className="hud-panel mx-3 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg px-4 py-4 sm:mx-6 sm:mt-6 sm:px-6">
         <div>
           <p className="hud-eyebrow text-xs">TNT AI Corporate OS</p>
           <h1 className="hud-title text-lg font-bold text-white">CEO Command Center</h1>
         </div>
 
-        <div className="flex items-center gap-4 text-sm">
+        {/* w-full on mobile so this drops to its own row under the title
+            instead of squeezing/hiding the nav — the nav itself was
+            previously "hidden sm:flex" (invisible on any phone-width
+            screen, with no other way to reach it), which is why links like
+            "Phòng họp" seemed to not exist at all when opened on a phone. */}
+        <div className="flex w-full min-w-0 items-center gap-3 text-sm sm:w-auto">
           {currentUser && (
-            <nav className="hidden items-center gap-4 sm:flex">
+            <nav className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:flex-none">
               {(currentUser.role === "chairman" || currentUser.role === "ceo") && (
-                <Link href="/dashboard/competitors" className="text-slate-400 transition hover:text-cyan-300">
+                <Link
+                  href="/dashboard/competitors"
+                  className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+                >
                   Dữ liệu đối thủ
                 </Link>
               )}
-              <Link href="/dashboard/room" className="text-slate-400 transition hover:text-cyan-300">
+              <Link href="/dashboard/room" className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300">
                 Phòng họp
               </Link>
-              <Link href="/dashboard/knowledge" className="text-slate-400 transition hover:text-cyan-300">
+              <Link
+                href="/dashboard/knowledge"
+                className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+              >
                 Knowledge Base
               </Link>
-              <Link href="/dashboard/reports" className="text-slate-400 transition hover:text-cyan-300">
+              <Link href="/dashboard/reports" className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300">
                 Báo cáo
               </Link>
               {currentUser.role === "chairman" && (
-                <Link href="/dashboard/decisions" className="text-slate-400 transition hover:text-cyan-300">
+                <Link
+                  href="/dashboard/decisions"
+                  className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+                >
                   Quyết định HĐQT
                 </Link>
               )}
             </nav>
           )}
           {currentUser && (
-            <span className="hidden text-slate-400 sm:inline">
+            <span className="hidden shrink-0 text-slate-400 sm:inline">
               {currentUser.email}{" "}
               <span className="rounded-full border border-cyan-800/60 bg-cyan-950/50 px-2 py-0.5 text-xs font-medium uppercase text-cyan-300">
                 {currentUser.role}
@@ -71,7 +85,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
             </span>
           )}
           {isSupabaseConfigured && (
-            <form action={signOut}>
+            <form action={signOut} className="shrink-0">
               <button
                 type="submit"
                 className="rounded-md border border-slate-700 px-3 py-1.5 text-slate-300 transition hover:border-cyan-700 hover:text-cyan-300"
