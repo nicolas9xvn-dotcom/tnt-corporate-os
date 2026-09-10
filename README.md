@@ -418,6 +418,18 @@ Gemini API" bên dưới.
   - **Cần deploy lại trên Vercel** để 2 cron job mới (`daily-report`, `process-queue`) trong
     `vercel.json` được đăng ký — Vercel chỉ đọc file này lúc deploy.
 
+**Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
+commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị
+"trượt" 1 lần, không phải do code hay do bạn thao tác sai. Cách xử lý theo thứ tự:
+1. Vào project trên Vercel → **Deployments** → xem commit mới nhất trên GitHub (`git log`) có
+   xuất hiện trong danh sách không.
+2. Nếu chưa thấy sau vài phút, thử push thêm 1 commit nhỏ bất kỳ (kể cả sửa 1 dòng trong
+   README) — nếu commit MỚI này tự lên được, nghĩa là webhook đã tự hồi phục, chỉ bỏ lỡ đúng
+   lần trước đó (bỏ qua, không cần làm gì thêm).
+3. Nếu vẫn không tự deploy: vào **Project Settings → Git** → bấm **Disconnect**, rồi kết nối
+   lại đúng repo đó (tạo lại webhook từ đầu) — không ảnh hưởng đến Environment Variables hay
+   domain đã cấu hình, chỉ tạo lại đường dây báo "có code mới" giữa GitHub và Vercel.
+
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục
       "Agent tự giao lại việc" ở trên; file đính kèm gốc thì chưa chuyển theo, chỉ có nội
