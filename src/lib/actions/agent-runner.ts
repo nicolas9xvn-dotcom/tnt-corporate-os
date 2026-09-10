@@ -1,5 +1,5 @@
 import { GoogleGenAI, Modality, type Content, type Part } from "@google/genai";
-import { createClient } from "@/lib/supabase/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAgentHistory } from "./agent-history";
 import { callFallbackProviders, isQuotaError } from "./text-fallback";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
@@ -94,7 +94,11 @@ async function checkCoordination(supabase: Supabase, rootTaskId: string): Promis
   return { stopped: rootTask?.stop_requested === true, interjections: (pending ?? []).map((m) => m.text) };
 }
 
-type Supabase = NonNullable<Awaited<ReturnType<typeof createClient>>>;
+// Generic client type (not the cookie-bound one from lib/supabase/server)
+// so this also accepts a service-role client — needed for the background
+// task queue (queue.ts), which runs from a Vercel Cron route with no
+// logged-in user/cookies to scope a session client by.
+type Supabase = SupabaseClient;
 
 export interface RunnerAgent {
   id: string;

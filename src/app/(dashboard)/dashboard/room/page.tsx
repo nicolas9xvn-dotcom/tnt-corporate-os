@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { RoomView, type SessionSummary } from "./room-view";
+import { QueuePanel, type QueueItemRow } from "./queue-panel";
 
 export default async function RoomPage() {
   if (!isSupabaseConfigured) {
@@ -44,6 +45,16 @@ export default async function RoomPage() {
           .limit(20)
       : { data: [] };
 
+  const { data: queueItems } =
+    agentIds.length > 0
+      ? await supabase
+          .from("task_queue")
+          .select("id, agent_id, input, status, error, created_at, agents(name)")
+          .in("agent_id", agentIds)
+          .order("created_at", { ascending: false })
+          .limit(20)
+      : { data: [] };
+
   return (
     <div className="flex flex-col gap-6">
       <section className="hud-panel rounded-lg p-6">
@@ -56,6 +67,8 @@ export default async function RoomPage() {
           chừng — agent đang chạy sẽ nhận được ở lượt xử lý tiếp theo.
         </p>
       </section>
+
+      <QueuePanel agents={agents ?? []} initialItems={(queueItems as unknown as QueueItemRow[]) ?? []} />
 
       <RoomView
         businessUnitId={businessUnitId}

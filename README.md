@@ -361,6 +361,62 @@ Gemini API" bên dưới.
     Chỉ hiện nếu trình duyệt hỗ trợ (hầu hết trình duyệt hiện đại trên máy tính/điện thoại đều
     có); bấm lần nữa để dừng đọc giữa chừng.
   - Không cần chạy migration nào — chỉ là giao diện, không đổi schema.
+- **"Phòng họp" — xem các phòng ban phối hợp trực tiếp + điều phối giữa chừng**
+  (`/dashboard/room`, `src/app/(dashboard)/dashboard/room/`,
+  `src/lib/actions/coordination.ts`, `supabase/migrations/0024_live_coordination.sql`):
+  mỗi khi bạn giao việc cho 1 agent và agent đó tự giao lại cho cấp dưới
+  (`delegate_to_agent`), toàn bộ chuỗi đó giờ hiện thành 1 "phiên" xem được trực tiếp — bên
+  trái là danh sách các phiên gần đây, bên phải là từng agent tham gia hiện ra như tin nhắn
+  chat, cập nhật ngay khi có thay đổi (Supabase Realtime), không cần bấm tải lại trang.
+  - **Gõ thêm chỉ đạo giữa chừng**: gõ vào ô bên dưới rồi bấm "Gửi" — nội dung được agent
+    đang chạy (bất kỳ agent nào trong chuỗi đang ở lượt xử lý) đọc vào lượt kế tiếp và tự điều
+    chỉnh theo. Do agent chỉ kiểm tra chỉ đạo mới **1 lần mỗi lượt xử lý** (tối đa 2 lượt/agent
+    — xem `MAX_TOOL_ROUNDS`), chỉ đạo có thể mất vài giây tới vài chục giây mới được agent
+    "nhìn thấy", không phải tức thời tuyệt đối.
+  - **"Dừng ngay"**: dừng mềm — đặt cờ, agent đang chạy tự kiểm tra và dừng ở lượt xử lý kế
+    tiếp của nó (không phải dừng ngay lập tức giữa 1 lượt gọi Gemini), toàn bộ chuỗi (cả agent
+    đang chạy lẫn các agent nó có thể giao tiếp theo) đều dừng theo vì dùng chung 1 phiên.
+  - Không có worker nền riêng cho tính năng này — toàn bộ 1 lần "Giao việc" (kể cả khi giao
+    việc xuống nhiều cấp) vẫn chạy trong đúng 1 request như trước, chỉ là giờ có thể theo dõi
+    + can thiệp từ xa trong lúc nó đang chạy.
+  - **Cần chạy `0024_live_coordination.sql`** trên Supabase SQL Editor — thêm cột
+    `tasks.root_task_id`/`tasks.stop_requested`, bảng `task_messages`, và thêm cả 2 bảng
+    `tasks`/`task_messages` vào Realtime publication.
+- **Báo kết quả về điện thoại qua Telegram** (`src/lib/telegram.ts`): mỗi khi 1 "Giao việc"
+  cấp cao nhất (không tính các lần agent tự giao lại cho cấp dưới bên trong) xong việc, lỗi,
+  hoặc cần duyệt, hệ thống tự gửi tin nhắn Telegram — không cần mở máy/mở trình duyệt để biết
+  kết quả. Miễn phí hoàn toàn qua Telegram Bot API.
+  - **Cách tạo bot** (làm 1 lần): mở Telegram, chat với **@BotFather** → gõ `/newbot` → đặt
+    tên bất kỳ → BotFather trả về 1 **token** (dạng `123456:ABC-DEF...`) — đó là
+    `TELEGRAM_BOT_TOKEN`. Sau đó **nhắn bất kỳ tin nào** cho bot vừa tạo (bot không tự nhắn
+    trước được), rồi mở trình duyệt vào
+    `https://api.telegram.org/bot<TOKEN_VỪA_TẠO>/getUpdates` — tìm số ở
+    `"chat":{"id": ...}` trong kết quả trả về, đó là `TELEGRAM_CHAT_ID`.
+  - Thêm 2 biến `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID` vào Vercel Environment Variables
+    rồi deploy lại — thiếu 1 trong 2 biến thì tính năng tự tắt êm, không lỗi gì cả.
+  - Không cần chạy migration nào.
+- **Agent hoạt động 24/7 — hàng đợi việc chạy nền + báo cáo tự động hàng ngày**
+  (`supabase/migrations/0025_task_queue.sql`, `src/lib/queue-runner.ts`,
+  `src/lib/actions/queue.ts`, `src/app/api/cron/process-queue/route.ts`,
+  `src/app/api/cron/daily-report/route.ts`): 2 cách để agent tự làm việc mà không cần bạn
+  ngồi chờ trước màn hình.
+  - **Hàng đợi chạy nền**: khi giao việc (chưa đính kèm file), thay vì bấm "Gửi" (chờ ngay
+    tại chỗ) có thể bấm **"Xếp hàng đợi (chạy nền)"** — việc được ghi vào hàng đợi và trả lời
+    ngay "đã xếp hàng", không phải chờ. Vercel Cron tự chạy vét hàng đợi mỗi ~15 phút (xem
+    `vercel.json`), kết quả báo qua Telegram; xem tiến độ + bấm **"Xử lý hàng đợi ngay"** để
+    chạy thử ngay (không chờ Cron) trong mục "Hàng đợi việc chạy nền" ở `/dashboard/room`.
+    Chưa hỗ trợ đính kèm file trong hàng đợi (chỉ chữ).
+  - **Báo cáo tổng quan tự động mỗi ngày**: cron riêng chạy 8h sáng (giờ Nhật) cho MỌI công ty
+    con đang có agent executive (CEO) — tự chạy đúng luồng "Tạo báo cáo tổng quan tự động" đã
+    có sẵn ở `/dashboard/reports` (hỏi Kế toán doanh thu, đọc lịch trống, hỏi vị thế cạnh
+    tranh, xuất PDF) và lưu thẳng vào "Báo cáo" + báo Telegram — không cần bấm nút.
+  - **Giới hạn cần biết về Vercel Cron**: gói **miễn phí (Hobby)** của Vercel giới hạn cron
+    job chỉ chạy **tối đa 1 lần/ngày** mỗi job (dù file cấu hình ghi 15 phút/lần, Vercel Hobby
+    sẽ tự giới hạn lại) — muốn hàng đợi tự chạy nhiều lần/ngày thật sự cần nâng cấp **Vercel
+    Pro**. Trong lúc đó, nút "Xử lý hàng đợi ngay" vẫn dùng được bình thường bất kỳ lúc nào.
+  - **Cần chạy `0025_task_queue.sql`** trên Supabase SQL Editor — tạo bảng `task_queue` mới.
+  - **Cần deploy lại trên Vercel** để 2 cron job mới (`daily-report`, `process-queue`) trong
+    `vercel.json` được đăng ký — Vercel chỉ đọc file này lúc deploy.
 
 **TODO — chưa kết nối thật:**
 - [x] ~~Chưa có cơ chế agent tự động chuyển việc/file cho agent khác~~ (đã xây — xem mục

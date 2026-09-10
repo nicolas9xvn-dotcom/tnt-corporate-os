@@ -2,6 +2,7 @@
 
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { runAgentTask, createTaskDraft, cancelTaskDraft, type GeneratedFileResult } from "@/lib/actions/run-task";
+import { enqueueTask } from "@/lib/actions/queue";
 import { createClient } from "@/lib/supabase/client";
 import { ATTACHMENTS_BUCKET, sanitizeFileName } from "@/lib/attachments";
 import type { DelegatedResult, GeneratedImage } from "@/lib/actions/agent-runner";
@@ -27,10 +28,30 @@ export function RunTaskForm({
   const [pendingApproval, setPendingApproval] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<"idle" | "uploading" | "processing">("idle");
+  const [queueMessage, setQueueMessage] = useState<string | null>(null);
+  const [queuing, setQueuing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const needsApproval = (approvalLevel ?? 1) >= 2;
   const pending = phase !== "idle";
+
+  // Fire-and-forget alternative to handleSubmit — doesn't support file
+  // attachments yet (see migration 0025), so only offered when there are
+  // none picked. Runs later via Vercel Cron or "Xử lý hàng đợi ngay" in
+  // Phòng họp; result comes back via Telegram instead of this screen.
+  async function handleEnqueue() {
+    if (!input.trim()) return;
+    setQueuing(true);
+    setError(null);
+    setQueueMessage(null);
+    const result = await enqueueTask(agentId, input);
+    if (result.error) setError(result.error);
+    else {
+      setQueueMessage("Đã xếp vào hàng đợi — sẽ tự chạy trong ít phút, kết quả báo qua Telegram (nếu đã cấu hình).");
+      setInput("");
+    }
+    setQueuing(false);
+  }
 
   function handleFilesChange(event: ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(event.target.files ?? []);
@@ -179,15 +200,29 @@ export function RunTaskForm({
           )}
         </div>
 
-        <button
-          type="submit"
-          disabled={pending || (!input.trim() && files.length === 0)}
-          className="self-start rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {phase === "uploading" ? "Đang tải file lên..." : phase === "processing" ? "Agent đang xử lý..." : "Gửi"}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="submit"
+            disabled={pending || (!input.trim() && files.length === 0)}
+            className="self-start rounded-md bg-cyan-400 px-3 py-1.5 text-xs font-semibold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {phase === "uploading" ? "Đang tải file lên..." : phase === "processing" ? "Agent đang xử lý..." : "Gửi"}
+          </button>
+          {files.length === 0 && (
+            <button
+              type="button"
+              onClick={handleEnqueue}
+              disabled={pending || queuing || !input.trim()}
+              title="Không cần chờ trong màn hình này — chạy nền, kết quả báo qua Telegram"
+              className="self-start rounded-md border border-cyan-800 px-3 py-1.5 text-xs font-semibold text-cyan-300 transition hover:border-cyan-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {queuing ? "Đang xếp hàng..." : "Xếp hàng đợi (chạy nền)"}
+            </button>
+          )}
+        </div>
       </form>
 
+      {queueMessage && <p className="mt-2 text-xs text-cyan-300">{queueMessage}</p>}
       {error && <p className="mt-2 text-xs text-red-400">{error}</p>}
 
       {pendingApproval && (
