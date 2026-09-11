@@ -53,7 +53,13 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
+  // Excludes /api entirely — those routes authenticate themselves
+  // (CRON_SECRET bearer token for cron routes, intentionally public for
+  // /api/public/*) and have no browser session cookie to check, so this
+  // proxy redirecting them to /login silently broke every cron job
+  // (GitHub Actions/Vercel Cron got a 307 back instead of ever reaching
+  // the route handler).
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
