@@ -28,6 +28,17 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      - name: Debug - list teams and projects visible to this token
+        run: |
+          echo "--- vercel whoami ---"
+          vercel whoami --token="$VERCEL_TOKEN" || true
+          echo "--- vercel teams ls ---"
+          vercel teams ls --token="$VERCEL_TOKEN" || true
+          echo "--- vercel project ls ---"
+          vercel project ls --token="$VERCEL_TOKEN" || true
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
       - name: Pull Vercel environment info
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
