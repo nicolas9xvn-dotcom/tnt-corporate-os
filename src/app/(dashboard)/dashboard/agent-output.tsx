@@ -9,13 +9,21 @@ import remarkGfm from "remark-gfm";
 // explicit `voice`, they silently fall back to the default (usually
 // English) voice and just mispronounce the Vietnamese text in an English
 // accent, which reads as "it's speaking English" even though the language
-// tag is correctly "vi-VN". Prefers a Vietnamese Google voice (fuller,
-// more natural prosody) over the OS's built-in one, if both are present.
+// tag is correctly "vi-VN". Ranked so the more natural-sounding engines
+// (Edge's neural "Natural" voices, then Google's) win over the OS's
+// default robotic one, when more than one is installed.
 function pickVietnameseVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   const viVoices = voices.filter((v) => v.lang.toLowerCase().startsWith("vi"));
   if (viVoices.length === 0) return undefined;
-  return viVoices.find((v) => /google/i.test(v.name)) ?? viVoices[0];
+  return (
+    viVoices.find((v) => /natural|neural|online/i.test(v.name)) ??
+    viVoices.find((v) => /google/i.test(v.name)) ??
+    viVoices[0]
+  );
 }
+
+const SPEED_PRESETS = [1, 1.2, 1.4, 0.85] as const;
+const SPEED_STORAGE_KEY = "tnt-tts-rate";
 
 // Free, client-side text-to-speech for agent output — no API cost, no
 // backend changes. Falls back to rendering nothing when the browser
@@ -24,6 +32,15 @@ export function SpeakButton({ text, className }: { text: string; className?: str
   const [supported, setSupported] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [noVietnameseVoice, setNoVietnameseVoice] = useState(false);
+  // Lazy initializer (not an effect) so this never triggers a second
+  // render just to apply the saved preference — safe to read
+  // localStorage here since nothing renders until "supported" flips true
+  // below, avoiding any server/client markup mismatch.
+  const [rate, setRate] = useState<number>(() => {
+    if (typeof window === "undefined") return SPEED_PRESETS[0];
+    const stored = Number(window.localStorage?.getItem(SPEED_STORAGE_KEY));
+    return SPEED_PRESETS.includes(stored as (typeof SPEED_PRESETS)[number]) ? stored : SPEED_PRESETS[0];
+  });
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
   useEffect(() => {
@@ -49,13 +66,8 @@ export function SpeakButton({ text, className }: { text: string; className?: str
 
   if (!supported) return null;
 
-  function handleClick() {
+  function speak(atRate: number) {
     const synth = window.speechSynthesis;
-    if (speaking) {
-      synth.cancel();
-      setSpeaking(false);
-      return;
-    }
     synth.cancel();
     // Strip Markdown syntax so it doesn't read out "**", "#", "|" etc.
     const plain = text
@@ -76,10 +88,7 @@ export function SpeakButton({ text, className }: { text: string; className?: str
       utterance.lang = "vi-VN";
       setNoVietnameseVoice(true);
     }
-    // Slightly slower than the 1.0 default reads noticeably more natural
-    // for Vietnamese TTS voices, which tend to clip word boundaries at
-    // full speed.
-    utterance.rate = 0.92;
+    utterance.rate = atRate;
     utterance.pitch = 1;
     utterance.onend = () => setSpeaking(false);
     utterance.onerror = () => setSpeaking(false);
@@ -87,18 +96,46 @@ export function SpeakButton({ text, className }: { text: string; className?: str
     setSpeaking(true);
   }
 
+  function handleClick() {
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      return;
+    }
+    speak(rate);
+  }
+
+  function cycleSpeed() {
+    const next = SPEED_PRESETS[(SPEED_PRESETS.indexOf(rate as (typeof SPEED_PRESETS)[number]) + 1) % SPEED_PRESETS.length];
+    setRate(next);
+    window.localStorage?.setItem(SPEED_STORAGE_KEY, String(next));
+    // Restart with the new rate right away if already speaking, instead
+    // of only applying it the next time "Nghe" is pressed.
+    if (speaking) speak(next);
+  }
+
   return (
     <span className="inline-flex shrink-0 flex-col items-end gap-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        className={
-          className ??
-          "inline-flex shrink-0 items-center gap-1 rounded-md border border-cyan-900/40 px-2 py-0.5 text-[0.65rem] text-cyan-300 hover:border-cyan-600"
-        }
-      >
-        {speaking ? "⏹ Dừng" : "🔊 Nghe"}
-      </button>
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <button
+          type="button"
+          onClick={handleClick}
+          className={
+            className ??
+            "inline-flex shrink-0 items-center gap-1 rounded-md border border-cyan-900/40 px-2 py-0.5 text-[0.65rem] text-cyan-300 hover:border-cyan-600"
+          }
+        >
+          {speaking ? "⏹ Dừng" : "🔊 Nghe"}
+        </button>
+        <button
+          type="button"
+          onClick={cycleSpeed}
+          title="Đổi tốc độ đọc"
+          className="inline-flex shrink-0 items-center rounded-md border border-cyan-900/40 px-2 py-0.5 text-[0.65rem] text-cyan-300 hover:border-cyan-600"
+        >
+          {rate}x
+        </button>
+      </span>
       {noVietnameseVoice && (
         <span className="text-right text-[0.6rem] leading-tight text-amber-500/80">
           Máy chưa có giọng đọc tiếng Việt — vào Cài đặt máy để tải thêm.
