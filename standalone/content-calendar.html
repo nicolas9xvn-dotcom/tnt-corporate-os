@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lịch Content — TNT AI Corporate OS</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: #020617;
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 16px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .panel {
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid rgba(8, 145, 178, 0.25);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .eyebrow {
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #67e8f9;
+    font-weight: 600;
+  }
+  h1 { font-size: 1.4rem; margin: 4px 0 0; color: #fff; }
+  p.hint { color: #94a3b8; font-size: 0.85rem; line-height: 1.5; }
+  input, select, textarea {
+    width: 100%;
+    background: #020617;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 0.9rem;
+    margin-top: 8px;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: #22d3ee; }
+  button {
+    background: #22d3ee;
+    color: #020617;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 16px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #cbd5e1;
+  }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 140px; }
+  .item {
+    border: 1px solid #1e293b;
+    background: rgba(2, 6, 23, 0.6);
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 10px;
+  }
+  .item-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .title { font-weight: 600; color: #f1f5f9; }
+  .badge {
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    background: #0f172a;
+    cursor: pointer;
+  }
+  .badge.scheduled { background: rgba(120, 53, 15, 0.4); color: #fcd34d; border-color: #78350f; }
+  .badge.posted { background: rgba(6, 78, 59, 0.4); color: #6ee7b7; border-color: #065f46; }
+  .platform { font-size: 0.7rem; color: #64748b; border: 1px solid #334155; border-radius: 999px; padding: 1px 8px; }
+  .date { font-size: 0.75rem; color: #64748b; }
+  .notes { margin-top: 6px; font-size: 0.8rem; color: #94a3b8; white-space: pre-line; }
+  .error { color: #f87171; font-size: 0.85rem; margin-top: 8px; }
+  #app { display: none; }
+  #login { display: block; }
+  a { color: #67e8f9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div id="login" class="panel">
+    <p class="eyebrow">TNT AI Corporate OS — Lịch Content</p>
+    <h1>Đăng nhập</h1>
+    <p class="hint">
+      Dùng đúng tài khoản đã có trên hệ thống chính (cùng dữ liệu, cùng Supabase). Trang này
+      là bản độc lập, chạy tách biệt khỏi dashboard chính — dùng tạm trong lúc chờ dashboard
+      chính deploy xong.
+    </p>
+    <input id="loginEmail" type="email" placeholder="Email" />
+    <input id="loginPassword" type="password" placeholder="Mật khẩu" />
+    <button id="loginBtn">Đăng nhập</button>
+    <p class="error" id="loginError"></p>
+  </div>
+
+  <div id="app">
+    <div class="panel">
+      <div class="row" style="align-items:center; justify-content:space-between;">
+        <div>
+          <p class="eyebrow">Lịch Content</p>
+          <h1>Lịch content/chiến dịch</h1>
+        </div>
+        <button class="ghost" id="logoutBtn">Đăng xuất</button>
+      </div>
+      <p class="hint">
+        Bấm vào nhãn trạng thái để chuyển Nháp → Đã lên lịch → Đã đăng. Dữ liệu dùng chung với
+        dashboard chính (bảng <code>content_calendar</code>) — agent Content Director/TikTok/
+        Facebook/Instagram cũng tự đọc lịch này.
+      </p>
+
+      <div class="row">
+        <input id="itemTitle" placeholder="Tiêu đề content/chiến dịch" />
+      </div>
+      <div class="row">
+        <select id="itemPlatform">
+          <option value="tiktok">TikTok</option>
+          <option value="facebook">Facebook</option>
+          <option value="instagram">Instagram</option>
+          <option value="google_maps">Google Maps</option>
+          <option value="khac">Khác</option>
+        </select>
+        <input id="itemDate" type="date" />
+      </div>
+      <div class="row">
+        <input id="itemNotes" placeholder="Ghi chú thêm (tuỳ chọn)" />
+      </div>
+      <button id="addBtn">Thêm vào lịch</button>
+      <p class="error" id="formError"></p>
+    </div>
+
+    <div class="panel">
+      <p class="eyebrow" id="listCount">Danh sách</p>
+      <div id="list"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ---- Cấu hình: dán đúng 2 giá trị dưới đây từ Vercel Environment
+  // Variables của project tnt-corporate-os (NEXT_PUBLIC_SUPABASE_URL và
+  // NEXT_PUBLIC_SUPABASE_ANON_KEY) — anon key là khoá công khai, an toàn để
+  // đặt trong file tĩnh này (Row Level Security trên Supabase vẫn bảo vệ
+  // dữ liệu, đúng như app chính đang dùng).
+  const SUPABASE_URL = "DÁN_NEXT_PUBLIC_SUPABASE_URL_VÀO_ĐÂY";
+  const SUPABASE_ANON_KEY = "DÁN_NEXT_PUBLIC_SUPABASE_ANON_KEY_VÀO_ĐÂY";
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const PLATFORM_LABELS = { tiktok: "TikTok", facebook: "Facebook", instagram: "Instagram", google_maps: "Google Maps", khac: "Khác" };
+  const STATUS_LABELS = { draft: "Nháp", scheduled: "Đã lên lịch", posted: "Đã đăng" };
+  const NEXT_STATUS = { draft: "scheduled", scheduled: "posted", posted: "draft" };
+
+  let businessUnitId = null;
+
+  function formatDate(iso) {
+    const d = new Date(iso);
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }
+
+  async function resolveBusinessUnit() {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: profile } = await supabase.from("users").select("business_unit_id").eq("id", user.id).maybeSingle();
+    if (profile && profile.business_unit_id) return profile.business_unit_id;
+    const { data: units } = await supabase.from("business_units").select("id").order("name").limit(1);
+    return units && units[0] ? units[0].id : null;
+  }
+
+  async function loadItems() {
+    const { data, error } = await supabase
+      .from("content_calendar")
+      .select("id, title, platform, scheduled_date, status, notes")
+      .eq("business_unit_id", businessUnitId)
+      .order("scheduled_date", { ascending: true })
+      .limit(100);
+
+    const list = document.getElementById("list");
+    document.getElementById("listCount").textContent = `Danh sách (${data ? data.length : 0})`;
+    if (error) {
+      list.innerHTML = `<p class="error">${error.message}</p>`;
+      return;
+    }
+    if (!data || data.length === 0) {
+      list.innerHTML = `<p class="hint">Chưa có lịch nào.</p>`;
+      return;
+    }
+    list.innerHTML = "";
+    for (const item of data) {
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div class="item-top">
+          <span class="title"></span>
+          <div class="row" style="flex:none; gap:6px;">
+            <span class="platform"></span>
+            <span class="date"></span>
+            <span class="badge ${item.status}" data-id="${item.id}" data-status="${item.status}"></span>
+          </div>
+        </div>
+        ${item.notes ? '<p class="notes"></p>' : ""}
+      `;
+      div.querySelector(".title").textContent = item.title;
+      div.querySelector(".platform").textContent = PLATFORM_LABELS[item.platform] || item.platform;
+      div.querySelector(".date").textContent = formatDate(item.scheduled_date);
+      div.querySelector(".badge").textContent = STATUS_LABELS[item.status] || item.status;
+      if (item.notes) div.querySelector(".notes").textContent = item.notes;
+      list.appendChild(div);
+    }
+
+    list.querySelectorAll(".badge").forEach((el) => {
+      el.addEventListener("click", async () => {
+        const id = el.getAttribute("data-id");
+        const current = el.getAttribute("data-status");
+        const next = NEXT_STATUS[current] || "draft";
+        el.textContent = "...";
+        const { error } = await supabase.from("content_calendar").update({ status: next }).eq("id", id);
+        if (!error) await loadItems();
+      });
+    });
+  }
+
+  async function handleAdd() {
+    const title = document.getElementById("itemTitle").value.trim();
+    const platform = document.getElementById("itemPlatform").value;
+    const scheduledDate = document.getElementById("itemDate").value;
+    const notes = document.getElementById("itemNotes").value.trim();
+    const errorEl = document.getElementById("formError");
+    errorEl.textContent = "";
+
+    if (!title) { errorEl.textContent = "Tiêu đề không được để trống."; return; }
+    if (!scheduledDate) { errorEl.textContent = "Cần chọn ngày."; return; }
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("content_calendar").insert({
+      business_unit_id: businessUnitId,
+      title,
+      platform,
+      scheduled_date: scheduledDate,
+      notes: notes || null,
+      created_by: user.id,
+    });
+    if (error) { errorEl.textContent = error.message; return; }
+
+    document.getElementById("itemTitle").value = "";
+    document.getElementById("itemDate").value = "";
+    document.getElementById("itemNotes").value = "";
+    await loadItems();
+  }
+
+  async function showApp() {
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    businessUnitId = await resolveBusinessUnit();
+    await loadItems();
+  }
+
+  document.getElementById("loginBtn").addEventListener("click", async () => {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errorEl = document.getElementById("loginError");
+    errorEl.textContent = "";
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) { errorEl.textContent = error.message; return; }
+    await showApp();
+  });
+
+  document.getElementById("addBtn").addEventListener("click", handleAdd);
+
+  document.getElementById("logoutBtn").addEventListener("click", async () => {
+    await supabase.auth.signOut();
+    document.getElementById("app").style.display = "none";
+    document.getElementById("login").style.display = "block";
+  });
+
+  // Resume an existing session on reload (Supabase persists it in
+  // localStorage by default) so re-opening the page doesn't need a fresh
+  // login every time.
+  (async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) await showApp();
+  })();
+</script>
+</body>
+</html>

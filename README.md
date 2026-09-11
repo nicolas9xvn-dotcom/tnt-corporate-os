@@ -476,6 +476,15 @@ Gemini API" bên dưới.
   agent TikTok/Facebook/Instagram tự đọc lịch này (chỉ đọc, không tự thêm/sửa) trước khi đề
   xuất content mới, tránh trùng hoặc quên lịch đã lên kế hoạch.
   - **Cần chạy `0028_content_calendar.sql`** trên Supabase SQL Editor.
+  - **Bản độc lập, dùng ngay không cần chờ Vercel deploy** (`standalone/content-calendar.html`):
+    1 file HTML tĩnh, tự đứng riêng — kéo-thả thẳng lên Netlify (giống cách
+    `japannailmap.netlify.app`/`ame29-nail.netlify.app` đã làm) là chạy được ngay, không đụng
+    gì đến project Vercel chính. Dùng chung đúng 1 Supabase project/bảng `content_calendar`
+    với dashboard chính — không tạo dữ liệu riêng, không bị lệch khi dashboard chính deploy
+    lại được. Trước khi deploy, mở file bằng trình soạn thảo văn bản, tìm 2 dòng
+    `DÁN_NEXT_PUBLIC_SUPABASE_URL_VÀO_ĐÂY` / `DÁN_NEXT_PUBLIC_SUPABASE_ANON_KEY_VÀO_ĐÂY` gần
+    đầu file, thay bằng đúng 2 giá trị đang dùng cho dashboard chính (Vercel → Environment
+    Variables). Đăng nhập bằng đúng tài khoản đã có sẵn trên hệ thống.
 
 **Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
 commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị
