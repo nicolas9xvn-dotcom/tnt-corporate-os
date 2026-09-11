@@ -11,6 +11,14 @@ on:
     branches: [main]
   workflow_dispatch: {}
 
+# Not secret — just identifiers (Project Settings -> General / account
+# General page). Setting these directly lets `vercel pull` skip the
+# "Loading teams..." account-lookup call that a project-scoped token
+# can't make, which was failing with "Error: User not found."
+env:
+  VERCEL_ORG_ID: team_7n5WO2OVzPgc8QZbe1wL7lQj
+  VERCEL_PROJECT_ID: prj_XwQNzaM7lFnSA1w3pTtR5qFbkFyK
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,11 +27,6 @@ jobs:
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
-
-      - name: Link Vercel project
-        run: vercel link --yes --token="$VERCEL_TOKEN"
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Pull Vercel environment info
         run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
