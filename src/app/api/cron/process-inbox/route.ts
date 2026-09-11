@@ -77,11 +77,19 @@ export async function GET(request: Request) {
     .select("id, name, google_drive_root_folder_id")
     .not("google_drive_root_folder_id", "is", null);
 
-  const summary: { businessUnit: string; processed: number; filed: number; review: number; duplicates: number; errors: number }[] = [];
+  const summary: { businessUnit: string; processed: number; filed: number; review: number; duplicates: number; errors: number; note?: string }[] =
+    [];
 
   for (const unit of units ?? []) {
     const rootId = unit.google_drive_root_folder_id as string;
-    const result = { businessUnit: unit.name, processed: 0, filed: 0, review: 0, duplicates: 0, errors: 0 };
+    const result: { businessUnit: string; processed: number; filed: number; review: number; duplicates: number; errors: number; note?: string } = {
+      businessUnit: unit.name,
+      processed: 0,
+      filed: 0,
+      review: 0,
+      duplicates: 0,
+      errors: 0,
+    };
 
     try {
       const [inboxId, reviewId] = await Promise.all([
@@ -259,6 +267,7 @@ export async function GET(request: Request) {
       const message = err instanceof Error ? err.message : "Lỗi không xác định.";
       await supabase.from("drive_sync_log").insert({ business_unit_id: unit.id, event: "error", status: "error", detail: message });
       result.errors += 1;
+      result.note = message;
     }
 
     summary.push(result);
