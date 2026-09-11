@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST } from "@/lib/actions/agent-runner";
-import { notifyTelegram } from "@/lib/telegram";
+import { notifyTelegram, telegramPreview } from "@/lib/telegram";
 
 // Vercel Cron hits this once a day (see vercel.json) — the "lên lịch cố
 // định" half of 24/7 operation: every business unit's top executive agent
@@ -116,11 +116,11 @@ export async function GET(request: Request) {
         output_file_path: result.generatedFile?.path ?? null,
         output_file_name: result.generatedFile?.name ?? null,
       });
-      await notifyTelegram(`📅 Báo cáo tổng quan tự động (${unit.name}):\n${(result.output ?? "").slice(0, 500)}`);
+      await notifyTelegram(`📅 Báo cáo tổng quan tự động (${unit.name}):\n${telegramPreview(result.output ?? "", 500)}`);
       summary.push({ businessUnit: unit.name, ok: true, note: "Đã tạo báo cáo." });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
-      await notifyTelegram(`⚠️ Báo cáo tổng quan tự động (${unit.name}) lỗi:\n${message.slice(0, 300)}`);
+      await notifyTelegram(`⚠️ Báo cáo tổng quan tự động (${unit.name}) lỗi:\n${telegramPreview(message, 300)}`);
       summary.push({ businessUnit: unit.name, ok: false, note: message });
     }
   }

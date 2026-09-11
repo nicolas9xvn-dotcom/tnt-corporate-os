@@ -1,3 +1,14 @@
+// Notifications embed a preview of the agent's output capped well under
+// Telegram's own 4096-char message limit, to keep pushes short and
+// skimmable — the full text always lives in the app (Reports / task
+// detail). Cutting a preview off mid-sentence with no indication reads as
+// a bug, so callers should build previews with this instead of a bare
+// .slice(...).
+export function telegramPreview(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...\n\n(xem đầy đủ trong app)`;
+}
+
 // Free push notification to the founder's phone when a task finishes or
 // needs approval — Telegram's Bot API has no cost and no rate limit that
 // matters at this scale. Silently no-ops if the 2 env vars aren't set, so

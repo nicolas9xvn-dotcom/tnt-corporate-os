@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST } from "./actions/agent-runner";
-import { notifyTelegram } from "./telegram";
+import { notifyTelegram, telegramPreview } from "./telegram";
 
 export interface DrainResult {
   processed: number;
@@ -83,7 +83,7 @@ export async function drainQueue(supabase: SupabaseClient, limit = 3): Promise<D
         .from("task_queue")
         .update({ status: "done", result_task_id: task.id, processed_at: new Date().toISOString() })
         .eq("id", item.id);
-      await notifyTelegram(`⏳ [Hàng đợi nền] ${agent.name} cần bạn duyệt trước khi chạy:\n${item.input.slice(0, 300)}`);
+      await notifyTelegram(`⏳ [Hàng đợi nền] ${agent.name} cần bạn duyệt trước khi chạy:\n${telegramPreview(item.input, 300)}`);
       items.push({ id: item.id, status: "done", agentName: agent.name });
       continue;
     }
@@ -119,7 +119,7 @@ export async function drainQueue(supabase: SupabaseClient, limit = 3): Promise<D
         .from("task_queue")
         .update({ status: "done", result_task_id: task.id, processed_at: new Date().toISOString() })
         .eq("id", item.id);
-      await notifyTelegram(`✅ [Hàng đợi nền] ${agent.name} đã xong việc:\n${(result.output ?? "").slice(0, 500)}`);
+      await notifyTelegram(`✅ [Hàng đợi nền] ${agent.name} đã xong việc:\n${telegramPreview(result.output ?? "", 500)}`);
       items.push({ id: item.id, status: "done", agentName: agent.name });
     } catch (err) {
       // runAgentConversation's own catch already marked the `tasks` row
@@ -131,7 +131,7 @@ export async function drainQueue(supabase: SupabaseClient, limit = 3): Promise<D
         .from("task_queue")
         .update({ status: "failed", error: message, result_task_id: task.id, processed_at: new Date().toISOString() })
         .eq("id", item.id);
-      await notifyTelegram(`⚠️ [Hàng đợi nền] ${agent.name} gặp lỗi khi chạy việc:\n${message.slice(0, 300)}`);
+      await notifyTelegram(`⚠️ [Hàng đợi nền] ${agent.name} gặp lỗi khi chạy việc:\n${telegramPreview(message, 300)}`);
       items.push({ id: item.id, status: "failed", agentName: agent.name });
     }
   }

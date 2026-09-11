@@ -7,7 +7,7 @@ import { runAgentConversation, MAX_DELEGATIONS_PER_REQUEST, type DelegatedResult
 import { createFileDownloadUrl } from "./file-downloads";
 import { ATTACHMENTS_BUCKET } from "@/lib/attachments";
 import type { TaskAttachment } from "@/lib/types";
-import { notifyTelegram } from "@/lib/telegram";
+import { notifyTelegram, telegramPreview } from "@/lib/telegram";
 
 export interface GeneratedFileResult {
   name: string;
@@ -144,7 +144,7 @@ export async function runAgentTask(
 
   if (needsApproval) {
     revalidatePath("/dashboard");
-    await notifyTelegram(`⏳ ${agent.name} cần bạn duyệt trước khi chạy:\n${storedInput.slice(0, 300)}`);
+    await notifyTelegram(`⏳ ${agent.name} cần bạn duyệt trước khi chạy:\n${telegramPreview(storedInput, 300)}`);
     return { error: null, pendingApproval: true };
   }
 
@@ -198,7 +198,7 @@ export async function runAgentTask(
     }
 
     revalidatePath("/dashboard");
-    await notifyTelegram(`✅ ${agent.name} đã xong việc:\n${(result.output ?? "").slice(0, 500)}`);
+    await notifyTelegram(`✅ ${agent.name} đã xong việc:\n${telegramPreview(result.output ?? "", 500)}`);
     return {
       error: null,
       output: result.output,
@@ -208,7 +208,7 @@ export async function runAgentTask(
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Gọi Gemini API thất bại.";
-    await notifyTelegram(`⚠️ ${agent.name} gặp lỗi khi chạy việc:\n${message.slice(0, 300)}`);
+    await notifyTelegram(`⚠️ ${agent.name} gặp lỗi khi chạy việc:\n${telegramPreview(message, 300)}`);
     return { error: message };
   }
 }
