@@ -485,6 +485,59 @@ Gemini API" bên dưới.
     `DÁN_NEXT_PUBLIC_SUPABASE_URL_VÀO_ĐÂY` / `DÁN_NEXT_PUBLIC_SUPABASE_ANON_KEY_VÀO_ĐÂY` gần
     đầu file, thay bằng đúng 2 giá trị đang dùng cho dashboard chính (Vercel → Environment
     Variables). Đăng nhập bằng đúng tài khoản đã có sẵn trên hệ thống.
+- **AME29 Content OS — MVP (`/dashboard/content-os`)**: pipeline tự động đọc thư viện ảnh/video
+  thô trên Google Drive, dùng Gemini phân loại, tự dời file vào đúng thư mục, không cần nhân
+  viên đặt tên hay chọn category tay.
+  - `supabase/migrations/0029_content_os_assets.sql`: bảng `content_assets` (metadata từng
+    file — category, subcategory, confidence, design/color/length/shape/parts/3D/style, trạng
+    thái UNUSED→SELECTED→IN_PRODUCTION→APPROVED→SCHEDULED→POSTED→ARCHIVED, hoặc `REVIEW` khi AI
+    chưa chắc), `nail_sets` (gom nhiều ảnh/video của cùng 1 bộ nail thật), `content_processed_files`
+    (để dành cho bản 4:5/9:16 sau này — chưa dùng ở MVP), `drive_sync_log` (nhật ký mỗi lần
+    quét), `classification_feedback` (ghi lại mỗi lần quản lý sửa sai cho AI, dùng làm ví dụ
+    "AI từng đoán sai" cho lần phân loại sau — không phải train lại model thật, chỉ là gợi ý
+    thêm vào prompt). Cũng thêm 2 cột `google_drive_root_folder_id` /
+    `google_drive_last_synced_at` vào bảng `business_units` có sẵn.
+  - `src/lib/google-drive.ts`: gọi Google Drive API bằng 1 Service Account riêng (JWT, không
+    phải tài khoản Gmail cá nhân) — tự tạo/tìm thư mục con, liệt kê file mới trong "00 INBOX",
+    tải nội dung file, di chuyển file giữa các thư mục. Không bao giờ sửa/nén/ghi đè file gốc.
+  - `src/lib/asset-classifier.ts`: gọi Gemini (multimodal, đọc thẳng cả ảnh lẫn video, không
+    cần tách khung hình) để phân loại theo đúng bộ quy tắc thương hiệu AME29 (NAIL luôn là nhân
+    vật chính, phân biệt chủ thể chính/phụ...), trả JSON có cấu trúc (`responseSchema`). File
+    nào phân loại đạt ≥85% độ tin cậy thì tự dời vào đúng thư mục category (+ thư mục tháng nếu
+    là NAIL); dưới 85% thì dời vào "99 REVIEW" kèm lý do AI viết ra, chờ người duyệt tay.
+  - `src/app/api/cron/process-inbox/route.ts`: cron chạy mỗi 15 phút (xem `vercel.json`) —
+    quét "00 INBOX" của từng công ty con đã cấu hình Drive, bỏ qua file trùng (theo `md5Checksum`
+    Google Drive tự trả về), phân loại, dời file, ghi `content_assets`, và nếu có từ 2 ảnh/video
+    NAIL trở lên trong cùng đợt quét thì hỏi Gemini thêm 1 lần nữa xem có phải cùng 1 bộ nail
+    thật không (`nail_sets`, mã dạng `AME29-NAIL-202609-001`).
+  - `/dashboard/content-os`: dashboard đơn giản — số liệu hôm nay (asset mới/tự phân loại/cần
+    duyệt/nail set/chưa dùng), hàng đợi "Cần duyệt" (bấm đúng category cho từng file — AI ghi
+    nhớ để tránh lặp lại lỗi tương tự lần sau), thư viện gần đây (link thẳng ra Google Drive để
+    xem file thật, dashboard không lưu/hiện lại ảnh).
+  - **Việc còn thiếu, chưa làm ở MVP này** (đúng như founder đã yêu cầu): chưa tự đăng bài lên
+    mạng xã hội, chưa tự trả lời bình luận, chưa có báo cáo phân tích, chưa xử lý crop 4:5/9:16 —
+    tất cả nằm ở phase sau.
+  - **Cần làm để chạy được (chưa có bước nào xong)**:
+    1. Tạo project tại [console.cloud.google.com](https://console.cloud.google.com), bật
+       **Google Drive API**.
+    2. IAM & Admin → Service Accounts → tạo 1 service account mới (không cần gán role IAM nào —
+       quyền cấp qua chia sẻ Drive, không qua IAM), tạo key JSON, tải file `.json` về.
+    3. Trên Google Drive, tạo thư mục gốc `AME29 PHOTO LIBRARY` với các thư mục con `00 INBOX`,
+       `01 NAIL`, `02 PARTS & CHARM`, `03 SALON`, `04 PROCESS`, `05 PEOPLE`, `06 CUSTOMER`,
+       `07 BRAND & MOOD`, `99 REVIEW` — chia sẻ thư mục gốc này cho đúng email service account
+       (dạng `...@...iam.gserviceaccount.com`, có trong file JSON ở khoá `client_email`) với
+       quyền **Editor**. Tài khoản Gmail cá nhân bình thường dùng được, không cần Google
+       Workspace.
+    4. Chạy `supabase/migrations/0029_content_os_assets.sql` trên Supabase SQL Editor.
+    5. Vào Supabase Table Editor, bảng `business_units`, điền cột `google_drive_root_folder_id`
+       cho đúng công ty con AME29 = Folder ID của "AME29 PHOTO LIBRARY" (chuỗi dài trong URL
+       Drive sau `/folders/`).
+    6. Dán toàn bộ nội dung file JSON ở bước 2 vào biến môi trường
+       `GOOGLE_DRIVE_SERVICE_ACCOUNT_KEY` trên Vercel (Project Settings → Environment
+       Variables) — **tuyệt đối không dán vào chat hay commit vào code**.
+    7. Deploy lại (hoặc chờ deploy tự động) để Vercel Cron nhận route `/api/cron/process-inbox`
+       mới — **lưu ý: nếu Vercel đang gặp sự cố không tự deploy khi push code (xem mục ngay bên
+       dưới), route cron này sẽ chưa chạy được cho tới khi deploy được**.
 
 **Nếu push code lên GitHub xong mà Vercel không tự deploy** (trang Deployments không thấy
 commit mới nhất xuất hiện, dù GitHub đã có đúng code mới): thường do webhook GitHub → Vercel bị

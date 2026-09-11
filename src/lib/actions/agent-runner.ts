@@ -42,14 +42,14 @@ const MAX_TOOL_ROUNDS = 2;
 // retrying seconds later would just work. Real error shape from the SDK is
 // unconfirmed (this sandbox can't reach the API), so this checks both a
 // possible top-level status and the stringified message text.
-function isOverloadedError(err: unknown): boolean {
+export function isOverloadedError(err: unknown): boolean {
   const status = (err as { status?: number | string })?.status;
   if (status === 503 || status === "UNAVAILABLE") return true;
   const message = err instanceof Error ? err.message : String(err);
   return /"code"\s*:\s*503|UNAVAILABLE|overloaded|high demand/i.test(message);
 }
 
-async function withOverloadRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 1500): Promise<T> {
+export async function withOverloadRetry<T>(fn: () => Promise<T>, retries = 2, baseDelayMs = 1500): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();

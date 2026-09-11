@@ -72,6 +72,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               >
                 Lịch Content
               </Link>
+              <Link
+                href="/dashboard/content-os"
+                className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+              >
+                Content OS
+              </Link>
               {currentUser.role === "chairman" && (
                 <Link
                   href="/dashboard/decisions"
