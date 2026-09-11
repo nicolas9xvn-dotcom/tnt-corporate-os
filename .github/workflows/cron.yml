@@ -35,10 +35,14 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           call() {
-            echo "Calling /api/cron/$1"
-            curl -sS -f -X GET "$SITE_URL/api/cron/$1" \
-              -H "Authorization: Bearer $CRON_SECRET"
+            echo "===== Calling /api/cron/$1 ====="
+            http_code=$(curl -sS -o /tmp/response.json -w "%{http_code}" -X GET "$SITE_URL/api/cron/$1" \
+              -H "Authorization: Bearer $CRON_SECRET")
+            echo "HTTP status: $http_code"
+            echo "Response body:"
+            cat /tmp/response.json
             echo
+            echo "================================="
           }
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
