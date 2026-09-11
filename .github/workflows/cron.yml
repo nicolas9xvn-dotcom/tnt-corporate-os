@@ -1,0 +1,55 @@
+name: Scheduled Jobs (Netlify Cron Replacement)
+
+# Netlify doesn't read vercel.json's "crons" config, so the routes that used
+# to run on Vercel Cron need a different scheduler now that this project is
+# hosted on Netlify. GitHub Actions' own cron calls each route directly over
+# HTTPS, authenticated the same way Vercel Cron did (Authorization: Bearer
+# CRON_SECRET) — no code changes needed in the routes themselves.
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # sync-competitors, once a day
+    - cron: "0 23 * * *"   # daily-report, once a day
+    - cron: "*/15 * * * *" # process-queue + process-inbox, every 15 min
+  workflow_dispatch:
+    inputs:
+      route:
+        description: "Cron route to call manually"
+        required: true
+        type: choice
+        options:
+          - sync-competitors
+          - daily-report
+          - process-queue
+          - process-inbox
+
+env:
+  SITE_URL: https://tnt-corporate-o.netlify.app
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the route(s) for this trigger
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          call() {
+            echo "Calling /api/cron/$1"
+            curl -sS -f -X GET "$SITE_URL/api/cron/$1" \
+              -H "Authorization: Bearer $CRON_SECRET"
+            echo
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            call "${{ inputs.route }}"
+          else
+            case "${{ github.event.schedule }}" in
+              "0 18 * * *") call "sync-competitors" ;;
+              "0 23 * * *") call "daily-report" ;;
+              "*/15 * * * *")
+                call "process-queue"
+                call "process-inbox"
+                ;;
+            esac
+          fi
