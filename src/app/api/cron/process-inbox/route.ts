@@ -87,6 +87,9 @@ export async function GET(request: Request) {
       processed: 0,
       filed: 0,
       review: 0,
+      // TEMP DEBUG: confirm what rootId actually looks like at runtime —
+      // remove once the "File not found: ." mystery is resolved.
+      note: `debug rootId=${JSON.stringify(rootId)} length=${rootId?.length}`,
       duplicates: 0,
       errors: 0,
     };
@@ -267,7 +270,7 @@ export async function GET(request: Request) {
       const message = err instanceof Error ? err.message : "Lỗi không xác định.";
       await supabase.from("drive_sync_log").insert({ business_unit_id: unit.id, event: "error", status: "error", detail: message });
       result.errors += 1;
-      result.note = message;
+      result.note = `${result.note} | error=${message}`;
     }
 
     summary.push(result);
