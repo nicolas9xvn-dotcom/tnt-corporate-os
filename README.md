@@ -647,3 +647,31 @@ docs/tnt-corporate-os-kien-truc.md Tài liệu kiến trúc gốc
 Kéo repo vào [Vercel](https://vercel.com/new), chọn thư mục `tnt-corporate-os` làm Root
 Directory nếu repo có nhiều project, điền `NEXT_PUBLIC_SUPABASE_URL` và
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` trong Environment Variables.
+
+## Đăng bài thật lên Facebook/Instagram/TikTok + theo dõi tương tác
+
+Content OS Phase 2 (`supabase/migrations/0030_social_publishing.sql`, `src/lib/social/**`,
+`src/app/api/social/**`) — đổi mục ở trên ("chưa tự đăng bài") thành đăng thật: kết nối tài
+khoản thật ở trang **Kênh MXH** (`/dashboard/social-accounts`), rồi trong **Lịch Content**
+chọn ảnh/video (từ Content OS) + caption + tài khoản, bấm "Đăng ngay" để đăng thẳng lên nền
+tảng. Lượt thích/bình luận/chia sẻ/xem tự cập nhật mỗi giờ qua cron mới
+`sync-social-metrics` (đã thêm vào `.github/workflows/cron.yml`, dùng chung `CRON_SECRET` đã
+có sẵn — không cần secret mới).
+
+- **Cần chạy `supabase/migrations/0030_social_publishing.sql`** trên Supabase (SQL Editor)
+  trước khi dùng.
+- Cần tạo 1 app trên Meta for Developers (Facebook + Instagram dùng chung 1 app) và 1 app trên
+  TikTok for Developers, rồi điền `FACEBOOK_APP_ID`, `FACEBOOK_APP_SECRET`,
+  `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` vào Environment Variables (Netlify) — các bước
+  tạo app chi tiết từng bước đã ghi sẵn trong `.env.local.example`.
+- **Cả Meta và TikTok đều yêu cầu App Review/audit trước khi đăng công khai** lên tài khoản
+  bất kỳ — Meta thường vài ngày, TikTok có thể 1-2 tuần và cần quay video demo. Trong lúc chờ
+  duyệt, vẫn test được với chính tài khoản Facebook/TikTok của bạn (thêm làm Admin/Tester của
+  app trong Developer Console).
+- TikTok mặc định đăng ở chế độ riêng tư (`SELF_ONLY`) cho tới khi được duyệt công khai — xem
+  `TIKTOK_PRIVACY_LEVEL` trong `.env.local.example`.
+- Instagram/TikTok cần 1 URL công khai để lấy ảnh/video (Drive vốn riêng tư) — hệ thống tự
+  upload tạm lên 1 bucket Supabase Storage công khai (`social-media-temp`, tạo sẵn trong
+  migration 0030) rồi xoá ngay sau khi nền tảng đã lấy xong, không giữ lại bản công khai nào.
+- Chưa test được thật (sandbox này không gọi ra Facebook/Instagram/TikTok để kiểm tra) — cần
+  bạn tự thử sau khi có App ID/Secret thật, báo lại lỗi nguyên văn nếu có để sửa tiếp.
