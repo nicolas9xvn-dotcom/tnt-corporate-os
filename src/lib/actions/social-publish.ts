@@ -90,12 +90,14 @@ export async function publishCalendarItem(calendarItemId: string): Promise<Actio
       externalPostId = result.externalPostId;
       permalink = result.permalink;
     } else if (account.platform === "tiktok") {
-      const uploaded = await uploadTempPublicFile(buffer, mimeType);
-      tempPath = uploaded.path;
+      // TikTok gets the raw bytes directly (FILE_UPLOAD) — no public URL
+      // bridge needed here, unlike Instagram (see publishTiktokPhoto/
+      // publishTiktokVideo for why: PULL_FROM_URL needs DNS-level domain
+      // verification this app's free Netlify subdomain can't provide).
       const result =
         asset.file_type === "video"
-          ? await publishTiktokVideo(tokenRow.access_token, uploaded.url, item.caption)
-          : await publishTiktokPhoto(tokenRow.access_token, uploaded.url, item.caption);
+          ? await publishTiktokVideo(tokenRow.access_token, buffer, item.caption)
+          : await publishTiktokPhoto(tokenRow.access_token, buffer, item.caption);
       externalPostId = result.externalPostId;
       permalink = result.permalink;
     } else {

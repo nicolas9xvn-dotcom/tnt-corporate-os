@@ -97,35 +97,60 @@ async function postContent<T>(path: string, body: Record<string, unknown>, acces
   return json as T;
 }
 
-// Publishing an image or video both use "PULL_FROM_URL" — TikTok fetches
-// the file itself from a public URL we hand it (see temp-storage.ts),
-// instead of this server doing a chunked byte-range upload. Both calls
-// return only a `publish_id` immediately; the real post only exists once
-// TikTok finishes processing it asynchronously (see fetchTiktokPublishStatus,
-// called from the metrics-sync cron).
-export async function publishTiktokPhoto(accessToken: string, imageUrl: string, caption: string): Promise<PublishResult> {
-  const res = await postContent<{ data: { publish_id: string } }>(
+// Publishing sends the raw bytes straight to TikTok ("FILE_UPLOAD") rather
+// than "PULL_FROM_URL" (TikTok fetching from a public URL we host) —
+// PULL_FROM_URL requires verifying the hosting domain via a DNS TXT
+// record, which isn't possible for a free `*.netlify.app` subdomain (DNS
+// for that zone belongs to Netlify, not this app). FILE_UPLOAD needs no
+// domain verification: init returns an `upload_url`, then the file bytes
+// are PUT directly to it. Both calls return only a `publish_id`
+// immediately; the real post only exists once TikTok finishes processing
+// it asynchronously (see fetchTiktokPublishStatus, called from the
+// metrics-sync cron).
+async function putTiktokFile(uploadUrl: string, buffer: Buffer, contentType: string): Promise<void> {
+  const res = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": contentType, "Content-Range": `bytes 0-${buffer.length - 1}/${buffer.length}` },
+    body: new Uint8Array(buffer),
+  });
+  if (!res.ok) throw new Error(`Tải file lên TikTok thất bại (${res.status}).`);
+}
+
+// Photo FILE_UPLOAD's exact init shape is the least-documented corner of
+// this API (TikTok added photo posting after video, and the sandbox here
+// can't reach TikTok to verify it live) — same "unverified, fix from the
+// real error message" situation as the Gemini/DeepSeek/Grok model names
+// elsewhere in this project.
+export async function publishTiktokPhoto(accessToken: string, imageBuffer: Buffer, caption: string): Promise<PublishResult> {
+  const res = await postContent<{ data: { publish_id: string; upload_url: string } }>(
     "/post/publish/content/init/",
     {
       post_info: { title: caption, privacy_level: PRIVACY_LEVEL, disable_comment: false },
-      source_info: { source: "PULL_FROM_URL", photo_cover_index: 0, photo_images: [imageUrl] },
+      source_info: { source: "FILE_UPLOAD", photo_cover_index: 0 },
       post_mode: "DIRECT_POST",
       media_type: "PHOTO",
     },
     accessToken
   );
+  await putTiktokFile(res.data.upload_url, imageBuffer, "image/jpeg");
   return { externalPostId: res.data.publish_id, permalink: null };
 }
 
-export async function publishTiktokVideo(accessToken: string, videoUrl: string, caption: string): Promise<PublishResult> {
-  const res = await postContent<{ data: { publish_id: string } }>(
+export async function publishTiktokVideo(accessToken: string, videoBuffer: Buffer, caption: string): Promise<PublishResult> {
+  const res = await postContent<{ data: { publish_id: string; upload_url: string } }>(
     "/post/publish/video/init/",
     {
       post_info: { title: caption, privacy_level: PRIVACY_LEVEL, disable_comment: false },
-      source_info: { source: "PULL_FROM_URL", video_url: videoUrl },
+      source_info: {
+        source: "FILE_UPLOAD",
+        video_size: videoBuffer.length,
+        chunk_size: videoBuffer.length,
+        total_chunk_count: 1,
+      },
     },
     accessToken
   );
+  await putTiktokFile(res.data.upload_url, videoBuffer, "video/mp4");
   return { externalPostId: res.data.publish_id, permalink: null };
 }
 
