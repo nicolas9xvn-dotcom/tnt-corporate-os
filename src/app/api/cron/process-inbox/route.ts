@@ -81,15 +81,16 @@ export async function GET(request: Request) {
     [];
 
   for (const unit of units ?? []) {
-    const rootId = unit.google_drive_root_folder_id as string;
+    // .trim() — a folder ID pasted into Supabase's Table Editor can pick up
+    // a trailing newline/whitespace invisibly, which turns it into an ID
+    // Drive doesn't recognize (surfaces as a bare "File not found: ." error
+    // with no ID in the message, since the malformed string matches nothing).
+    const rootId = (unit.google_drive_root_folder_id as string).trim();
     const result: { businessUnit: string; processed: number; filed: number; review: number; duplicates: number; errors: number; note?: string } = {
       businessUnit: unit.name,
       processed: 0,
       filed: 0,
       review: 0,
-      // TEMP DEBUG: confirm what rootId actually looks like at runtime —
-      // remove once the "File not found: ." mystery is resolved.
-      note: `debug rootId=${JSON.stringify(rootId)} length=${rootId?.length}`,
       duplicates: 0,
       errors: 0,
     };
@@ -270,7 +271,7 @@ export async function GET(request: Request) {
       const message = err instanceof Error ? err.message : "Lỗi không xác định.";
       await supabase.from("drive_sync_log").insert({ business_unit_id: unit.id, event: "error", status: "error", detail: message });
       result.errors += 1;
-      result.note = `${result.note} | error=${message}`;
+      result.note = message;
     }
 
     summary.push(result);
