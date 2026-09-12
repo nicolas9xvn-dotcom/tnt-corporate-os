@@ -77,6 +77,14 @@ export function SpeakButton({ text, className }: { text: string; className?: str
       .replace(/\s+/g, " ")
       .trim();
     const utterance = new SpeechSynthesisUtterance(plain);
+    // Re-fetch live from the browser instead of trusting voicesRef alone —
+    // on some browsers (notably Android Chrome) a voice object cached from
+    // an earlier "voiceschanged" snapshot can go stale by the time speak()
+    // is actually called, and passing a stale SpeechSynthesisVoice as
+    // utterance.voice fails silently: no error, no warning, it just falls
+    // back to the system default (English) voice instead of Vietnamese.
+    const liveVoices = window.speechSynthesis.getVoices();
+    if (liveVoices.length > 0) voicesRef.current = liveVoices;
     const voice = pickVietnameseVoice(voicesRef.current);
     if (voice) {
       utterance.voice = voice;

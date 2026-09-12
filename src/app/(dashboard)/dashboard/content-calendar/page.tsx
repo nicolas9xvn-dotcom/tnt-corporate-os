@@ -2,6 +2,9 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CalendarForm } from "./calendar-form";
 import { StatusButton } from "./status-button";
+import { PublishPanel } from "./publish-panel";
+
+const REAL_PLATFORMS = new Set(["facebook", "instagram", "tiktok"]);
 
 const PLATFORM_LABELS: Record<string, string> = {
   tiktok: "TikTok",
@@ -39,12 +42,30 @@ export default async function ContentCalendarPage() {
 
   const { data: items } = await supabase
     .from("content_calendar")
-    .select("id, title, platform, scheduled_date, status, notes")
+    .select(
+      "id, title, platform, scheduled_date, status, notes, content_asset_id, caption, social_account_id, external_post_id, permalink, publish_error, likes_count, comments_count, shares_count, views_count"
+    )
     .eq("business_unit_id", targetBusinessUnitId)
     .order("scheduled_date", { ascending: true })
     .limit(100);
 
   const rows = items ?? [];
+
+  const { data: assets } = await supabase
+    .from("content_assets")
+    .select("id, asset_code, category, file_type")
+    .eq("business_unit_id", targetBusinessUnitId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  const { data: socialAccounts } = await supabase
+    .from("social_accounts")
+    .select("id, platform, account_name")
+    .eq("business_unit_id", targetBusinessUnitId)
+    .eq("status", "connected");
+
+  const assetOptions = assets ?? [];
+  const accountsByPlatform = (platform: string) => (socialAccounts ?? []).filter((a) => a.platform === platform);
 
   return (
     <div className="flex flex-col gap-6">
@@ -79,6 +100,9 @@ export default async function ContentCalendarPage() {
                   </div>
                 </div>
                 {item.notes && <p className="mt-1.5 whitespace-pre-line text-xs text-slate-400">{item.notes}</p>}
+                {REAL_PLATFORMS.has(item.platform) && (
+                  <PublishPanel item={item} assets={assetOptions} accounts={accountsByPlatform(item.platform)} />
+                )}
               </li>
             ))}
           </ul>

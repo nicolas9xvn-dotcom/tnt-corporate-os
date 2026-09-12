@@ -11,6 +11,7 @@ on:
     - cron: "0 18 * * *"   # sync-competitors, once a day
     - cron: "0 23 * * *"   # daily-report, once a day
     - cron: "*/15 * * * *" # process-queue + process-inbox, every 15 min
+    - cron: "0 * * * *"    # sync-social-metrics, once an hour
   workflow_dispatch:
     inputs:
       route:
@@ -22,6 +23,7 @@ on:
           - daily-report
           - process-queue
           - process-inbox
+          - sync-social-metrics
 
 env:
   SITE_URL: https://tnt-corporate-o.netlify.app
@@ -55,5 +57,6 @@ jobs:
                 call "process-queue"
                 call "process-inbox"
                 ;;
+              "0 * * * *") call "sync-social-metrics" ;;
             esac
           fi

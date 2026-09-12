@@ -78,6 +78,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               >
                 Content OS
               </Link>
+              <Link
+                href="/dashboard/social-accounts"
+                className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+              >
+                Kênh MXH
+              </Link>
               {currentUser.role === "chairman" && (
                 <Link
                   href="/dashboard/decisions"
