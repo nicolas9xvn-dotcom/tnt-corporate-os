@@ -103,7 +103,19 @@ export async function GET(request: Request) {
 
       const { data: unitRow } = await supabase.from("business_units").select("google_drive_last_synced_at").eq("id", unit.id).maybeSingle();
       const sinceIso = unitRow?.google_drive_last_synced_at ?? undefined;
+      const now = new Date();
       const files = await listInboxFiles(inboxId, sinceIso);
+
+      // Advance the sync watermark right away (using the timestamp captured
+      // BEFORE listing, so nothing uploaded during this run's processing is
+      // ever skipped next time) instead of after the whole file loop. A
+      // single file's full round-trip (download + Gemini classify + Drive
+      // move) can run past Netlify's function time budget — if that happens
+      // mid-loop, the old end-of-run update would never fire, and the next
+      // run would treat every file in this batch as "new" again (harmless
+      // re-processing on its own, since drive_md5 already caught duplicates,
+      // but wasteful and it only gets worse as the inbox accumulates).
+      await supabase.from("business_units").update({ google_drive_last_synced_at: now.toISOString() }).eq("id", unit.id);
 
       const { data: feedbackRows } = await supabase
         .from("classification_feedback")
@@ -115,7 +127,6 @@ export async function GET(request: Request) {
       );
 
       const nailCandidates: { assetId: string; fileBuffer: Buffer; mimeType: string }[] = [];
-      const now = new Date();
       const monthLabel = yyyymm(now);
       const monthCompact = yyyymmCompact(now);
 
@@ -265,8 +276,6 @@ export async function GET(request: Request) {
           // Grouping is a nice-to-have — never let it fail the whole run.
         }
       }
-
-      await supabase.from("business_units").update({ google_drive_last_synced_at: now.toISOString() }).eq("id", unit.id);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Lỗi không xác định.";
       await supabase.from("drive_sync_log").insert({ business_unit_id: unit.id, event: "error", status: "error", detail: message });
