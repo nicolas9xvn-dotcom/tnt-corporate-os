@@ -19,7 +19,10 @@ function facebookRedirectUri(): string {
 }
 
 export function facebookOAuthUrl(state: string): string {
-  const appId = process.env.FACEBOOK_APP_ID;
+  // .trim() guards against a trailing newline/space picked up when pasting
+  // into Netlify's env var UI — same class of bug as the TikTok client key
+  // and, earlier this project, the Google Drive folder ID.
+  const appId = process.env.FACEBOOK_APP_ID?.trim();
   if (!appId) throw new Error("FACEBOOK_APP_ID chưa được cấu hình.");
   const params = new URLSearchParams({
     client_id: appId,
@@ -32,8 +35,8 @@ export function facebookOAuthUrl(state: string): string {
 }
 
 export async function exchangeFacebookCode(code: string): Promise<{ accessToken: string }> {
-  const appId = process.env.FACEBOOK_APP_ID;
-  const appSecret = process.env.FACEBOOK_APP_SECRET;
+  const appId = process.env.FACEBOOK_APP_ID?.trim();
+  const appSecret = process.env.FACEBOOK_APP_SECRET?.trim();
   if (!appId || !appSecret) throw new Error("FACEBOOK_APP_ID/FACEBOOK_APP_SECRET chưa được cấu hình.");
 
   const shortLived = await graphGet<{ access_token: string }>("/oauth/access_token", {

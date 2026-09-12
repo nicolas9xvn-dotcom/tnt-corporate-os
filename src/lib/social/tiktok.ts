@@ -36,7 +36,12 @@ function tiktokRedirectUri(): string {
 }
 
 export function tiktokOAuthUrl(state: string, codeChallenge: string): string {
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
+  // .trim() — pasting into Netlify's env var UI can silently pick up a
+  // trailing newline/space, turning a correct key into one TikTok doesn't
+  // recognize (the same class of bug hit earlier with the Google Drive
+  // folder ID) — TikTok's own error for this is a generic "client_key"
+  // validation failure with no further detail.
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
   if (!clientKey) throw new Error("TIKTOK_CLIENT_KEY chưa được cấu hình.");
   const params = new URLSearchParams({
     client_key: clientKey,
@@ -54,8 +59,8 @@ export async function exchangeTiktokCode(
   code: string,
   codeVerifier: string
 ): Promise<{ accessToken: string; refreshToken: string; openId: string; expiresIn: number }> {
-  const clientKey = process.env.TIKTOK_CLIENT_KEY;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
+  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   if (!clientKey || !clientSecret) throw new Error("TIKTOK_CLIENT_KEY/TIKTOK_CLIENT_SECRET chưa được cấu hình.");
 
   const res = await fetch(`${API_BASE}/oauth/token/`, {
