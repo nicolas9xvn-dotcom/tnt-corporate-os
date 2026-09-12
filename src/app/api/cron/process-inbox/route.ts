@@ -180,8 +180,7 @@ export async function GET(request: Request) {
           if (autoFile) {
             const categoryFolderName = CATEGORY_FOLDER_NAMES[classification.category];
             const categoryFolderId = await ensureChildFolder(rootId, categoryFolderName);
-            targetFolderId =
-              classification.category === "NAIL" ? await ensureChildFolder(categoryFolderId, monthLabel) : categoryFolderId;
+            targetFolderId = await ensureChildFolder(categoryFolderId, monthLabel);
           } else {
             targetFolderId = reviewId;
           }

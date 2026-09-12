@@ -52,8 +52,7 @@ export async function resolveReviewItem(assetId: string, correctCategory: AssetC
     const rootId = unit.google_drive_root_folder_id;
     const reviewFolderId = await ensureChildFolder(rootId, REVIEW_FOLDER_NAME);
     const categoryFolderId = await ensureChildFolder(rootId, CATEGORY_FOLDER_NAMES[correctCategory]);
-    const targetFolderId =
-      correctCategory === "NAIL" ? await ensureChildFolder(categoryFolderId, monthLabel(new Date())) : categoryFolderId;
+    const targetFolderId = await ensureChildFolder(categoryFolderId, monthLabel(new Date()));
 
     await moveFile(asset.drive_file_id, reviewFolderId, targetFolderId);
 
