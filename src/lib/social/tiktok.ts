@@ -6,7 +6,11 @@ import type { PublishResult } from "./types";
 const AUTH_BASE = "https://www.tiktok.com/v2/auth/authorize/";
 const API_BASE = "https://open.tiktokapis.com/v2";
 
-export const TIKTOK_OAUTH_SCOPES = "user.info.basic,video.publish,video.list";
+// Only what the code actually uses (user info + direct-post publishing) —
+// requesting a scope the TikTok app doesn't have enabled makes the OAuth
+// call itself fail with invalid_scope, so this must stay in sync with
+// whatever's actually turned on under the app's Scopes tab.
+export const TIKTOK_OAUTH_SCOPES = "user.info.basic,video.publish";
 
 // While the app is unaudited by TikTok, Content Posting API posts are
 // forced private (SELF_ONLY) regardless of what's requested here — this
