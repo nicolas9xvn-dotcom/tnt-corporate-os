@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { DisconnectButton } from "./disconnect-button";
+import { BusinessUnitSwitcher } from "../business-unit-switcher";
+import { resolveTargetBusinessUnitId } from "@/lib/business-unit-scope";
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: "Facebook",
@@ -21,9 +23,9 @@ function formatDate(iso: string): string {
 export default async function SocialAccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ connected?: string; error?: string }>;
+  searchParams: Promise<{ connected?: string; error?: string; bu?: string }>;
 }) {
-  const { connected, error: connectError } = await searchParams;
+  const { connected, error: connectError, bu } = await searchParams;
 
   if (!isSupabaseConfigured) {
     return <p className="text-sm text-amber-300">Chưa kết nối Supabase.</p>;
@@ -41,7 +43,7 @@ export default async function SocialAccountsPage({
   if (!viewer) return <p className="text-sm text-slate-400">Không tìm thấy hồ sơ người dùng.</p>;
 
   const { data: businessUnits } = await supabase.from("business_units").select("id, name").order("name");
-  const targetBusinessUnitId = viewer.business_unit_id ?? businessUnits?.[0]?.id ?? null;
+  const targetBusinessUnitId = resolveTargetBusinessUnitId(viewer.business_unit_id, businessUnits ?? [], bu);
   if (!targetBusinessUnitId) {
     return <p className="text-sm text-amber-300">Chưa có công ty con nào trong database.</p>;
   }
@@ -64,6 +66,12 @@ export default async function SocialAccountsPage({
           Kết nối tài khoản thật để &quot;Đăng ngay&quot; trong Lịch Content đăng thẳng lên nền tảng, và
           tự động cập nhật lượt thích/bình luận/lượt xem sau khi đăng.
         </p>
+        <BusinessUnitSwitcher
+          basePath="/dashboard/social-accounts"
+          businessUnits={businessUnits ?? []}
+          currentId={targetBusinessUnitId}
+          locked={Boolean(viewer.business_unit_id)}
+        />
 
         {connected && (
           <p className="mt-3 rounded-md border border-emerald-800/60 bg-emerald-950/40 px-3 py-2 text-xs text-emerald-300">

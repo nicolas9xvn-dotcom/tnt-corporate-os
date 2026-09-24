@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
       expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
     });
 
-    const response = NextResponse.redirect(`${SETTINGS_URL}?connected=tiktok`);
+    const response = NextResponse.redirect(`${SETTINGS_URL}?bu=${encodeURIComponent(businessUnitId)}&connected=tiktok`);
     response.cookies.delete("tiktok_oauth_state");
     response.cookies.delete("tiktok_oauth_verifier");
     return response;

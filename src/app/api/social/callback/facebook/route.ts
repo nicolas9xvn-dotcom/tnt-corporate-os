@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const response = NextResponse.redirect(`${SETTINGS_URL}?connected=facebook`);
+    const response = NextResponse.redirect(`${SETTINGS_URL}?bu=${encodeURIComponent(businessUnitId)}&connected=facebook`);
     response.cookies.delete("fb_oauth_state");
     return response;
   } catch (err) {

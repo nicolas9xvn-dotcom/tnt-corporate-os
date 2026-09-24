@@ -675,3 +675,20 @@ có sẵn — không cần secret mới).
   migration 0030) rồi xoá ngay sau khi nền tảng đã lấy xong, không giữ lại bản công khai nào.
 - Chưa test được thật (sandbox này không gọi ra Facebook/Instagram/TikTok để kiểm tra) — cần
   bạn tự thử sau khi có App ID/Secret thật, báo lại lỗi nguyên văn nếu có để sửa tiếp.
+
+## Công ty con MỀU Studio (character IP, tách khỏi AME29)
+
+`supabase/migrations/0031_meu_studio_business_unit.sql` thêm công ty con **MỀU Studio** — IP
+nhân vật MỀU có lịch content, tài khoản TikTok/Instagram/Facebook và (sau này) thư mục Drive
+riêng, không lẫn với AME29 (AME29 ≠ MỀU). Chỉ thêm dữ liệu: chưa có phòng ban/agent vì giai
+đoạn 1 xưởng phim chạy thủ công (ChatGPT + Dola/Seedance + CapCut) — cron `daily-report` tự bỏ
+qua ("Chưa có agent executive"), `process-inbox` bỏ qua tới khi điền
+`google_drive_root_folder_id`.
+
+- **Cần chạy `supabase/migrations/0031_meu_studio_business_unit.sql`** trên Supabase (SQL
+  Editor).
+- Trang **Lịch Content** và **Kênh MXH** giờ có hàng nút chọn công ty con (chỉ chairman thấy,
+  qua `?bu=<id>`); ceo/staff vẫn bị khoá đúng công ty con của mình như trước. Mặc định vẫn mở
+  AME29 như cũ. Kết nối TikTok/Facebook xong sẽ quay về đúng công ty con vừa kết nối.
+- Các trang Knowledge/Reports/Room/Content OS chưa có nút chọn — chairman vẫn chỉ thấy AME29
+  ở các trang đó.
