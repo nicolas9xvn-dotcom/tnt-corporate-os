@@ -3,7 +3,7 @@
 Theo **MỀU Canon v1.1** (`meu-canon-v1.1.md`). Mỗi tập = 1 Signature State.
 
 **Cách dùng trên Dola (Seedance 2.5):**
-1. Gắn ảnh tham chiếu đã **cắt rời từng ô** (không gắn nguyên bảng): R1 = dáng đứng Bộ 1, R2 = pose tương ứng trong Bộ 2, R3 = phụ kiện Bộ 5, R4 = bàn chân Bộ 4, R5 = dũa Bộ 7.
+1. Gắn ảnh tham chiếu đã **cắt rời từng ô** (không gắn nguyên bảng): R1 = Proportion Master (ảnh đứng khoanh tay — ưu tiên ảnh này vì không có dũa cũ), R2 = pose tương ứng trong Bộ 2, R3 = phụ kiện Bộ 5, R4 = bàn chân Bộ 4, R5 = dũa Bộ 7.
 2. Dán nguyên khối prompt tiếng Anh. Tạo 2–3 lần, chọn bản qua bảng kiểm (Canon §8).
 3. Nếu Seedance không tự cắt cảnh được ở chỗ ghi "HARD CUT" → tạo 2 clip rời rồi nối trong CapCut.
 4. Chữ overlay + logo thêm trong CapCut. Chữ tiếng Nhật dưới đây là câu rất ngắn, **nên nhờ người bản xứ kiểm tra** trước khi đăng; ngôn ngữ overlay vẫn là quyết định [TBD].
@@ -12,7 +12,7 @@ Mọi prompt đều bắt đầu bằng khối **CHARACTER LOCK** và kết thú
 
 ```
 CHARACTER LOCK: MỀU, the exact calico cat girl from the reference images. Keep face,
-calico pattern, amber side-eye, proportions, black quilted AME29 apron, pink bow-flower
+calico pattern, amber side-eye, slim body with long legs (not chibi), black quilted AME29 apron, pink bow-flower
 MEU hair clip on her left ear, exactly ONE long S-curved tail (white tip, black/orange
 bands) with the pink-red MEU tail ring and sakura charm. Cat paws with pink toe pads and
 a white sakura mark on the main pad. Identical to references.

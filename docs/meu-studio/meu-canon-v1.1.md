@@ -40,8 +40,8 @@ When a request could affect Character DNA, answer first with:
 
 | Set | Status | Use for | Notes |
 |---|---|---|---|
-| Bộ 1 — Character Master (Core Design v2.2 standing figure) | CANON | identity, proportions, pattern | Body proportion vs Bộ 2 → **[TBD]** (§10) |
-| Bộ 2 — Pose Vocabulary (7 Signature States sheet) | CANON for **poses + personality only** | pose, attitude | Its hair clip and tail ring are drawn inaccurately → take accessories from Bộ 5 |
+| Bộ 1 — Character Master (Core Design v2.2 standing figure) + **Proportion Master** (2 full-body images: Nail Queen standing with file, arms-crossed standing) | CANON | identity, **body proportions**, pattern | Proportion chốt 2026-09-24. Ignore the file drawn in the Nail Queen image (old design, typo "OSAAK") → file from Bộ 7 |
+| Bộ 2 — Pose Vocabulary (7 Signature States sheet) | CANON for **poses + personality only** | pose, attitude | Body is drawn more chibi than the Proportion Master, and hair clip/tail ring are inaccurate → take body from Bộ 1, accessories from Bộ 5. Should be re-rendered at Bộ 1 proportions |
 | Bộ 3 — Face & Expression Master | CANON | face, 7 expressions | — |
 | Bộ 4 — Paw & Sakura™ Paw Mark | CANON (highest priority for paws) | paw anatomy, paw emblem | — |
 | Bộ 5 — Signature Accessories | CANON for **hair clip + tail ring** | accessories | Its section 3 ("đệm chính hình cánh hoa" / flower-shaped main pad) is **SUPERSEDED by Bộ 4** — ignore it |
@@ -56,6 +56,13 @@ For video tools: upload **single cropped panels on plain background**, never who
 ---
 
 ## 3. VISUAL DNA LOCKS
+
+### 3.0 Body proportions (Proportion Master — locked 2026-09-24)
+- Large round head: head including ears ≈ **2/5 of total height** (approximate, measured on the Proportion Master).
+- **Slim, feminine body — NOT chibi, NOT chubby.** Narrow waist, slim arms.
+- **Long slim legs** ≈ 1/3 of total height, cat feet; elegant standing with one leg crossing in front (model-like stance).
+- Tail roughly as long as her body height, S-curve.
+- If a generated MỀU looks short, stubby, toddler-like or baby-like → reject.
 
 ### 3.1 Fur & pattern
 - Colors: white base, black/dark brown, warm soft orange.
@@ -147,7 +154,7 @@ Attach references (cropped single panels): **R1** Bộ 1 figure · **R2** the ma
 
 ```
 CHARACTER LOCK: MỀU, the exact calico cat girl from the reference images. Keep face,
-calico pattern, amber side-eye, proportions, black quilted AME29 apron, pink bow-flower
+calico pattern, amber side-eye, slim body with long legs (not chibi), black quilted AME29 apron, pink bow-flower
 MEU hair clip on her left ear, exactly ONE long S-curved tail (white tip, black/orange
 bands) with the pink-red MEU tail ring and sakura charm. Cat paws with pink toe pads and
 a white sakura mark on the main pad. Identical to references.
@@ -174,6 +181,7 @@ paw pad.
 - 🔴 Cat paws — no human fingers
 - 🔴 No clearly visible garbage text
 - 🔴 Looks like MỀU at first glance (silhouette + face)
+- 🔴 Slim body, long legs — not chibi/stubby
 - 🟡 Calico pattern, eye color, Sakura mark (small deviations OK in wide shots)
 
 ---
@@ -189,7 +197,7 @@ The Film Bible v1.0 (Osaka dream world, home → world → home, Shiba husband, 
 
 ## 10. OPEN DECISIONS [TBD]
 
-1. **Body proportion:** Bộ 1 (longer legs, slimmer) vs Bộ 2 (shorter, more chibi). Until decided, use Bộ 1 as identity reference and Bộ 2 for pose only.
+1. ~~Body proportion~~ → **DECIDED:** Proportion Master (§3.0).
 2. **Brand wording:** apron says "Ame29 NAIL OSAKA" (script) while the file says "AME29 NAIL SALON" (sans). Use the salon's real logo; until decided, avoid showing brand text in close-up.
 3. **Overlay language:** Japanese / Vietnamese / English.
 4. **Dedicated MỀU social accounts** vs posting on AME29 channels.
