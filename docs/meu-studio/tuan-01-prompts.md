@@ -6,7 +6,7 @@ Theo **MỀU Canon v1.1** (`meu-canon-v1.1.md`). Mỗi tập = 1 Signature State
 1. Gắn ảnh tham chiếu đã **cắt rời từng ô** (không gắn nguyên bảng): R1 = Proportion Master (ảnh đứng khoanh tay — ưu tiên ảnh này vì không có dũa cũ), R2 = pose tương ứng trong Bộ 2, R3 = phụ kiện Bộ 5, R4 = bàn chân Bộ 4, R5 = dũa Bộ 7.
 2. Dán nguyên khối prompt tiếng Anh. Tạo 2–3 lần, chọn bản qua bảng kiểm (Canon §8).
 3. Nếu Seedance không tự cắt cảnh được ở chỗ ghi "HARD CUT" → tạo 2 clip rời rồi nối trong CapCut.
-4. Chữ overlay + logo thêm trong CapCut. Chữ tiếng Nhật dưới đây là câu rất ngắn, **nên nhờ người bản xứ kiểm tra** trước khi đăng; ngôn ngữ overlay vẫn là quyết định [TBD].
+4. Chữ overlay + logo thêm trong CapCut. Chữ overlay bằng **tiếng Nhật giọng Osaka (大阪弁)** — **bắt buộc nhờ người Kansai bản xứ kiểm tra** trước khi đăng. Đăng trên **kênh TikTok riêng của MỀU**.
 
 Mọi prompt đều bắt đầu bằng khối **CHARACTER LOCK** và kết thúc bằng khối **NEGATIVE** giống hệt nhau:
 
@@ -44,7 +44,7 @@ SOUND: chic pop beat, camera shutter + flash sound at 2s, music cuts at 4s, retu
 No dialogue.
 [NEGATIVE]
 ```
-Overlay cuối: 「完璧。」(Hoàn hảo.)
+Overlay cuối: 「完璧やん。」(Hoàn hảo chứ sao.)
 - **KEEP:** pose Icon, side-eye, phụ kiện. **CHANGE:** thêm điện thoại. **RISK:** điện thoại có thể khiến AI vẽ ngón tay người → kiểm kỹ bàn chân.
 
 ---
@@ -66,7 +66,7 @@ white chest, black patch, orange patch — sharp and sassy.
 SOUND: sassy pizzicato beat, three accent hits at 4s, 5.5s, 7s. No dialogue.
 [NEGATIVE]
 ```
-Overlay mở đầu (giả làm bình luận): 「かわいい茶トラ！」(Mèo cam dễ thương!) → Overlay cuối: 「三毛です。」(Tôi là tam thể.)
+Overlay mở đầu (giả làm bình luận): 「かわいい茶トラ！」(Mèo cam dễ thương!) → Overlay cuối (MỀU): 「三毛やで。」(Tam thể nhé.)
 - **Câu đùa lặp lại mạnh nhất tuần** — mời khán giả bình luận. **RISK:** AI có thể đổi mảng màu khi quay cận → so với Bộ 1.
 
 ---
@@ -88,7 +88,7 @@ looks "straight".
 SOUND: light runway beat, tiny "clink" at 3s, one comedic pause at 5s. No dialogue.
 [NEGATIVE]
 ```
-Overlay cuối: 「まっすぐ。」(Thẳng rồi.)
+Overlay cuối: 「まっすぐやん。」(Thẳng rồi còn gì.)
 - **RISK cao nhất tuần:** cận cảnh kẹp tóc → dễ bị vẽ sai. Nếu kẹp sai hình/chữ → loại clip. Đây cũng là bài test tốt cho độ chính xác phụ kiện.
 
 ---
@@ -113,7 +113,7 @@ SOUND: upbeat playful beat, snack crinkle at 2s, hard stop at 5s, small "tsk" at
 music back at 7s. No dialogue.
 [NEGATIVE]
 ```
-Overlay: 「乾いてない…」(Chưa khô…) → 「問題なし。」(Không vấn đề gì.)
+Overlay: 「まだ乾いてへん…」(Chưa khô…) → 「問題あらへん。」(Không sao hết.)
 - Mở series "Sơn chưa khô #1". **RISK:** móng sơn + cầm đồ → nguy cơ ngón tay người; bắt buộc gắn R4.
 
 ---
@@ -136,7 +136,7 @@ SOUND: soft lo-fi beat, alarm ring at 3s, cut to silence at 6s, gentle "clink", 
 returns. No dialogue.
 [NEGATIVE]
 ```
-Overlay: 「あと5分…」(5 phút nữa…)
+Overlay: 「あと5分寝かしてぇな…」(Cho ngủ thêm 5 phút đi mà…)
 - Mở câu đùa "không bao giờ cởi tạp dề". **RISK:** tư thế nằm cuộn dễ làm AI nhân đôi đuôi → kiểm đúng 1 đuôi.
 
 ---
@@ -161,7 +161,7 @@ paw.
 SOUND: dramatic beat build 0-4s, record scratch at 5s, cute chime at 8s. No dialogue.
 [NEGATIVE]
 ```
-Overlay: 「ダイエット中。」(Đang ăn kiêng.)
+Overlay: 「ダイエット中やで。」(Đang ăn kiêng đó.)
 - Nếu cắt cảnh không đẹp → tạo 2 clip (0–5s, 5–10s) rồi nối trong CapCut.
 
 ---
@@ -186,7 +186,7 @@ SOUND: strong K-pop style beat, filing "shk" sounds on each beat, crash at 7s, s
 then one final beat hit at 9s. No dialogue.
 [NEGATIVE]
 ```
-Overlay: 「プロですから。」(Dân chuyên mà.) + logo AME29 góc dưới (thêm trong CapCut).
+Overlay: 「プロやからな。」(Dân chuyên mà.) + logo AME29 góc dưới (thêm trong CapCut).
 - Tập gắn AME29 rõ nhất. **RISK:** dũa có thể bị vẽ sai (màu, đầu bàn chân, chữ) → loại nếu sai; chữ "AME29" trên dũa để mờ/nhỏ.
 
 ---
