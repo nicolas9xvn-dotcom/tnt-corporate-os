@@ -45,7 +45,7 @@ When a request could affect Character DNA, answer first with:
 | Bộ 3 — Face & Expression Master | CANON | face, 7 expressions | — |
 | Bộ 4 — Paw & Sakura™ Paw Mark | CANON (highest priority for paws) | paw anatomy, paw emblem | — |
 | Bộ 5 — Signature Accessories | CANON for **hair clip + tail ring** | accessories | Its section 3 ("đệm chính hình cánh hoa" / flower-shaped main pad) is **SUPERSEDED by Bộ 4** — ignore it |
-| Bộ 6 — AME29 Apron | CANON | apron | Brand wording **[TBD]** (§10) |
+| Bộ 6 — AME29 Apron | CANON | apron | Wording must be **AME29 NAIL** (§3.9) — current images still say "NAIL OSAKA" → re-render |
 | Bộ 7 — MỀU Nail File v2.2 (pink) | CANON | nail file | Older black file with paw-shaped handle is **SUPERSEDED** |
 | Bộ 8 — Master Reference Index | overview only | — | Not a design source |
 | "10 poses" sheet (5 social + 5 at home) | SUPERSEDED | — | Replaced by Bộ 2 (7 states). "Cuddly MỀU" with a human hand is **forbidden** (breaks world logic) |
@@ -99,8 +99,14 @@ For video tools: upload **single cropped panels on plain background**, never who
 - No other outfits in Phase 1.
 
 ### 3.7 Nail file (Bộ 7)
-- Pink sanding file, rounded ends, raised 3D Sakura™ paw emblem at one end, "AME29" wordmark on the left half.
+- Pink sanding file, rounded ends, raised 3D Sakura™ paw emblem at one end, "AME29 NAIL" wordmark on the left half.
 - Colors: Sakura Pink #FF6FA8, White #FFFFFF, Dark Brown #5A262E.
+
+### 3.9 Brand wording (locked 2026-09-24)
+- Official wording on every MỀU asset: **AME29 NAIL** (not "NAIL OSAKA", not "NAIL SALON").
+- Applies to apron (Bộ 6), nail file (Bộ 7), tags, packaging.
+- Font/lockup: **[TBD]** — script "Ame29" (apron) vs sans "AME29" (file).
+- Existing Master images still show old wording. Until they are re-rendered, keep brand text small/out of focus in AI video and add the correct logo in CapCut.
 
 ### 3.8 Rendering style
 - Premium 3D animated film look, soft detailed fur, big glossy expressive eyes, warm pastel lighting, soft shadows.
@@ -204,6 +210,6 @@ The Film Bible v1.0 (Osaka dream world, home → world → home, Shiba husband, 
 ## 10. OPEN DECISIONS [TBD]
 
 1. ~~Body proportion~~ → **DECIDED:** Proportion Master (§3.0).
-2. **Brand wording:** apron says "Ame29 NAIL OSAKA" (script) while the file says "AME29 NAIL SALON" (sans). Use the salon's real logo; until decided, avoid showing brand text in close-up.
+2. ~~Brand wording~~ → **DECIDED:** AME29 NAIL (§3.9). Still open: **font/lockup** (script vs sans).
 3. ~~Overlay language~~ → **DECIDED:** Japanese, 大阪弁 (§6).
 4. ~~Social accounts~~ → **DECIDED:** MỀU has her own TikTok (§6).
