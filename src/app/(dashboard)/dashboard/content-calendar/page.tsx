@@ -3,6 +3,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CalendarForm } from "./calendar-form";
 import { StatusButton } from "./status-button";
 import { PublishPanel } from "./publish-panel";
+import { BusinessUnitSwitcher } from "../business-unit-switcher";
+import { resolveTargetBusinessUnitId } from "@/lib/business-unit-scope";
 
 const REAL_PLATFORMS = new Set(["facebook", "instagram", "tiktok"]);
 
@@ -18,7 +20,9 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-export default async function ContentCalendarPage() {
+export default async function ContentCalendarPage({ searchParams }: { searchParams: Promise<{ bu?: string }> }) {
+  const { bu } = await searchParams;
+
   if (!isSupabaseConfigured) {
     return <p className="text-sm text-amber-300">Chưa kết nối Supabase.</p>;
   }
@@ -35,7 +39,7 @@ export default async function ContentCalendarPage() {
   if (!viewer) return <p className="text-sm text-slate-400">Không tìm thấy hồ sơ người dùng.</p>;
 
   const { data: businessUnits } = await supabase.from("business_units").select("id, name").order("name");
-  const targetBusinessUnitId = viewer.business_unit_id ?? businessUnits?.[0]?.id ?? null;
+  const targetBusinessUnitId = resolveTargetBusinessUnitId(viewer.business_unit_id, businessUnits ?? [], bu);
   if (!targetBusinessUnitId) {
     return <p className="text-sm text-amber-300">Chưa có công ty con nào trong database.</p>;
   }
@@ -78,6 +82,12 @@ export default async function ContentCalendarPage() {
           trước khi đề xuất content mới, tránh trùng hoặc quên lịch. Bấm vào nhãn trạng thái để
           chuyển Nháp → Đã lên lịch → Đã đăng.
         </p>
+        <BusinessUnitSwitcher
+          basePath="/dashboard/content-calendar"
+          businessUnits={businessUnits ?? []}
+          currentId={targetBusinessUnitId}
+          locked={Boolean(viewer.business_unit_id)}
+        />
         <CalendarForm businessUnitId={targetBusinessUnitId} />
       </section>
 

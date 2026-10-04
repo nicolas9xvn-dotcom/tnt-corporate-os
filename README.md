@@ -675,3 +675,35 @@ có sẵn — không cần secret mới).
   migration 0030) rồi xoá ngay sau khi nền tảng đã lấy xong, không giữ lại bản công khai nào.
 - Chưa test được thật (sandbox này không gọi ra Facebook/Instagram/TikTok để kiểm tra) — cần
   bạn tự thử sau khi có App ID/Secret thật, báo lại lỗi nguyên văn nếu có để sửa tiếp.
+
+## Công ty con MỀU Studio (character IP, tách khỏi AME29)
+
+`supabase/migrations/0031_meu_studio_business_unit.sql` thêm công ty con **MỀU Studio** — IP
+nhân vật MỀU có lịch content, tài khoản TikTok/Instagram/Facebook và (sau này) thư mục Drive
+riêng, không lẫn với AME29 (AME29 ≠ MỀU). Chỉ thêm dữ liệu: chưa có phòng ban/agent vì giai
+đoạn 1 xưởng phim chạy thủ công (ChatGPT + Dola/Seedance + CapCut) — cron `daily-report` tự bỏ
+qua ("Chưa có agent executive"), `process-inbox` bỏ qua tới khi điền
+`google_drive_root_folder_id`.
+
+- **Cần chạy `supabase/migrations/0031_meu_studio_business_unit.sql`** trên Supabase (SQL
+  Editor).
+- Trang **Lịch Content** và **Kênh MXH** giờ có hàng nút chọn công ty con (chỉ chairman thấy,
+  qua `?bu=<id>`); ceo/staff vẫn bị khoá đúng công ty con của mình như trước. Mặc định vẫn mở
+  AME29 như cũ. Kết nối TikTok/Facebook xong sẽ quay về đúng công ty con vừa kết nối.
+- Các trang Knowledge/Reports/Room/Content OS chưa có nút chọn — chairman vẫn chỉ thấy AME29
+  ở các trang đó.
+
+## MỀU Studio — xưởng phim MỀU (MVP)
+
+`supabase/migrations/0032_meu_studio.sql`, `src/lib/meu-studio.ts`, `src/lib/actions/meu-studio.ts`,
+`src/app/(dashboard)/dashboard/meu-studio/**` — khu riêng trong TNT OS để sản xuất các tập MỀU, dữ liệu gắn
+với công ty con MỀU Studio (RLS: chairman + thành viên MỀU Studio; nhân viên AME29 không thấy menu lẫn dữ liệu).
+
+- **Bảng tập phim**: mã tập tự tăng (T01, T02…), Signature State, trạng thái Ý tưởng → Kịch bản → Ảnh khung
+  đầu → Video → Dựng → Đã đăng.
+- **Phân cảnh**: mỗi shot 1 hành động; bối cảnh, âm thanh, chữ overlay 大阪弁, ảnh tham chiếu thêm (dũa / bàn chân).
+- **Bộ tạo prompt** theo MỀU Canon v1.1 (`docs/meu-studio/`): prompt ảnh khung đầu + prompt video, có nút Copy để
+  dán sang Dola. Không gọi API tạo video (Dola chưa có API) — video vẫn làm tay, file để trên Google Drive.
+- **Duyệt clip** theo bảng kiểm Canon §8 (đạt khi đủ các mục 🔴).
+- **Đưa vào Lịch Content**: tạo mục TikTok (Nháp) trong lịch của MỀU Studio và liên kết với tập.
+- **Cần chạy `0031_meu_studio_business_unit.sql` rồi `0032_meu_studio.sql`** trên Supabase (SQL Editor).
