@@ -692,3 +692,18 @@ qua ("Chưa có agent executive"), `process-inbox` bỏ qua tới khi điền
   AME29 như cũ. Kết nối TikTok/Facebook xong sẽ quay về đúng công ty con vừa kết nối.
 - Các trang Knowledge/Reports/Room/Content OS chưa có nút chọn — chairman vẫn chỉ thấy AME29
   ở các trang đó.
+
+## MỀU Studio — xưởng phim MỀU (MVP)
+
+`supabase/migrations/0032_meu_studio.sql`, `src/lib/meu-studio.ts`, `src/lib/actions/meu-studio.ts`,
+`src/app/(dashboard)/dashboard/meu-studio/**` — khu riêng trong TNT OS để sản xuất các tập MỀU, dữ liệu gắn
+với công ty con MỀU Studio (RLS: chairman + thành viên MỀU Studio; nhân viên AME29 không thấy menu lẫn dữ liệu).
+
+- **Bảng tập phim**: mã tập tự tăng (T01, T02…), Signature State, trạng thái Ý tưởng → Kịch bản → Ảnh khung
+  đầu → Video → Dựng → Đã đăng.
+- **Phân cảnh**: mỗi shot 1 hành động; bối cảnh, âm thanh, chữ overlay 大阪弁, ảnh tham chiếu thêm (dũa / bàn chân).
+- **Bộ tạo prompt** theo MỀU Canon v1.1 (`docs/meu-studio/`): prompt ảnh khung đầu + prompt video, có nút Copy để
+  dán sang Dola. Không gọi API tạo video (Dola chưa có API) — video vẫn làm tay, file để trên Google Drive.
+- **Duyệt clip** theo bảng kiểm Canon §8 (đạt khi đủ các mục 🔴).
+- **Đưa vào Lịch Content**: tạo mục TikTok (Nháp) trong lịch của MỀU Studio và liên kết với tập.
+- **Cần chạy `0031_meu_studio_business_unit.sql` rồi `0032_meu_studio.sql`** trên Supabase (SQL Editor).

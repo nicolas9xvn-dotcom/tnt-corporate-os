@@ -5,9 +5,11 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { signOut } from "@/lib/actions/auth";
 import type { AppUser } from "@/lib/types";
+import { MEU_BUSINESS_UNIT_NAME } from "@/lib/meu-studio";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   let currentUser: AppUser | null = null;
+  let canSeeMeuStudio = false;
 
   if (isSupabaseConfigured) {
     const supabase = await createClient();
@@ -27,6 +29,17 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         .maybeSingle();
 
       currentUser = profile;
+
+      // RLS returns the MỀU Studio unit only to the chairman or its members,
+      // so the nav link stays hidden for AME29 staff.
+      if (profile) {
+        const { data: meuUnit } = await supabase
+          .from("business_units")
+          .select("id")
+          .eq("name", MEU_BUSINESS_UNIT_NAME)
+          .maybeSingle();
+        canSeeMeuStudio = Boolean(meuUnit);
+      }
     }
   }
 
@@ -84,6 +97,14 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               >
                 Kênh MXH
               </Link>
+              {canSeeMeuStudio && (
+                <Link
+                  href="/dashboard/meu-studio"
+                  className="shrink-0 whitespace-nowrap text-slate-400 transition hover:text-cyan-300"
+                >
+                  MỀU Studio
+                </Link>
+              )}
               {currentUser.role === "chairman" && (
                 <Link
                   href="/dashboard/decisions"
