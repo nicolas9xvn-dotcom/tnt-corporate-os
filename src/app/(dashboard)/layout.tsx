@@ -59,6 +59,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         <div className="flex w-full min-w-0 items-center gap-3 text-sm sm:w-auto">
           {currentUser && (
             <nav className="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto sm:flex-none">
+              <Link href="/dashboard/office" className="shrink-0 whitespace-nowrap font-medium text-amber-300 transition hover:text-cyan-300">
+                Văn phòng AI
+              </Link>
               {(currentUser.role === "chairman" || currentUser.role === "ceo") && (
                 <Link
                   href="/dashboard/competitors"
