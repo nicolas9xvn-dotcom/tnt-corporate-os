@@ -62,7 +62,7 @@ h1 span{color:var(--or)}
 .dock{position:absolute;z-index:3;display:flex;flex-direction:column;gap:10px;pointer-events:none}
 .dock>*{pointer-events:auto}
 .dock-l{left:12px;top:12px;bottom:12px;width:224px}
-.dock-r{right:12px;top:12px;bottom:12px;width:300px;overflow:auto;scrollbar-width:thin}
+.dock-r{right:12px;top:12px;bottom:12px;width:344px;overflow:auto;scrollbar-width:thin}
 .fl-list{display:flex;flex-direction:column;gap:5px;overflow:auto;padding:8px;scrollbar-width:thin;flex:1}
 .fl{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:6px;min-height:44px;padding:5px 8px;border:1px solid rgba(139,92,255,.4);border-radius:4px;background:rgba(20,10,60,.6);cursor:pointer;color:#cfd6ff;font:600 11px/1.2 var(--f-body)}
 .fl .n{font:700 13px var(--f-mono);color:var(--c,#29e6ff)}
@@ -95,7 +95,7 @@ h1 span{color:var(--or)}
 .link{color:var(--or);font-weight:600;text-decoration:none}
 .empty-note{color:var(--muted);padding:8px 2px}
 
-.topbar{position:absolute;z-index:3;left:248px;right:324px;top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;pointer-events:none}
+.topbar{position:absolute;z-index:3;left:248px;right:368px;top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;pointer-events:none}
 .topbar>*{pointer-events:auto}
 .crumb{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:4px;background:rgba(14,8,48,.78);border:1px solid rgba(41,230,255,.3);font:700 11px var(--f-mono);letter-spacing:.12em;color:#7ff3ff;text-transform:uppercase}
 .btn{min-height:40px;padding:0 14px;border-radius:4px;border:1px solid var(--or);background:rgba(255,179,71,.12);color:var(--or);font:700 11px var(--f-mono);letter-spacing:.1em;cursor:pointer}
@@ -113,7 +113,8 @@ h1 span{color:var(--or)}
 .bp{width:100%;height:auto;filter:drop-shadow(0 0 6px rgba(41,230,255,.35))}
 .bp rect{cursor:pointer}
 .fimg{width:100%;height:auto;display:block;border-radius:4px;border:1px solid rgba(41,230,255,.4);box-shadow:0 0 14px rgba(41,230,255,.25)}
-.ov .fimg{max-height:46vh;object-fit:contain;background:#05031a}
+.fimg{cursor:zoom-in}
+.ov .fimg{cursor:default;max-height:64vh;object-fit:contain;background:#05031a}
 
 /* ---- phóng to ô thông tin ---- */
 .ov{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(4,2,18,.66);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .22s}
@@ -391,7 +392,8 @@ function updateCity(){
   for(const it of cityItems){
     const t=((it.x-C.x)*dx+(it.z-C.z)*dz)/L2;
     const lat=Math.hypot(C.x+dx*t-it.x,C.z+dz*t-it.z);
-    const target=(t>.02&&t<1.05&&lat<16+Math.max(it.w,it.dd))?0:1;
+    const near=Math.hypot(it.x-C.x,it.z-C.z)<it.w+it.dd+34;     // tòa quá sát camera cũng hạ xuống
+    const target=((t>.02&&t<1.05&&lat<16+Math.max(it.w,it.dd))||near)?0:1;
     if(Math.abs(it.k-target)>.01){setCityItem(it,it.k+(target-it.k)*.18);touched.add(it.im)}
   }
   touched.forEach(im=>{im.instanceMatrix.needsUpdate=true});
@@ -400,7 +402,7 @@ let cityTick=0;
 
 /* ---------- Dữ liệu → tầng ---------- */
 let agents=[],byId=new Map(),tasksByAgent=new Map(),data=null,selected=null;
-let floors=[],TOTAL=10,tower=null,hitMeshes=[],floorHits=[],walkers=[],rings=[],beacon=null,fountains=[],vehicles=[],cabins=[],jobs=[],pending=[];
+let floors=[],TOTAL=10,tower=null,hitMeshes=[],floorHits=[],walkers=[],rings=[],beacon=null,fountains=[],vehicles=[],cabins=[],jobs=[],pending=[],helis=[];
 const taskSeen=new Map();
 const view={floor:null};  // null = toàn tòa nhà
 const labelsEl=$('labels');
@@ -451,10 +453,43 @@ function disposeTower(){
   if(!tower)return;scene.remove(tower);
   tower.traverse(o=>{if(o.userData.ownGeo&&o.geometry)o.geometry.dispose()});
   floorLabels.forEach(l=>l.el.remove());agentLabels.forEach(l=>l.el.remove());
-  floorLabels=[];agentLabels=[];hitMeshes=[];floorHits=[];walkers=[];rings=[];beacon=null;fountains=[];vehicles=[];cabins=[];jobs=[];pending=[];
+  floorLabels=[];agentLabels=[];hitMeshes=[];floorHits=[];walkers=[];rings=[];beacon=null;fountains=[];vehicles=[];cabins=[];jobs=[];pending=[];helis=[];
 }
 function label(cls,html,color){
   const el=document.createElement('div');el.className='lbl '+cls;if(color)el.style.setProperty('--c',color);el.innerHTML=html;labelsEl.appendChild(el);return el;
+}
+
+/* ---------- Trực thăng chiếu đèn thẳng xuống ---------- */
+const beamTex=(()=>{const c=document.createElement('canvas');c.width=4;c.height=64;const x=c.getContext('2d');const gr=x.createLinearGradient(0,0,0,64);gr.addColorStop(0,'#ffffff');gr.addColorStop(1,'#000000');x.fillStyle=gr;x.fillRect(0,0,4,64);return new THREE.CanvasTexture(c)})();
+function makeHelicopter(){
+  const g=new THREE.Group();
+  const bodyM=mat('heliBody',0x2a3150,{metalness:.7,roughness:.3}),bladeM=mat('blade',0x1b2040);
+  const body=new THREE.Mesh(sphereGeo,bodyM);body.scale.set(1.5,.85,.8);body.castShadow=true;g.add(body);
+  const cock=new THREE.Mesh(sphereGeo,new THREE.MeshStandardMaterial({color:0x7fd8ff,metalness:.6,roughness:.1,transparent:true,opacity:.55}));
+  cock.scale.set(.75,.6,.62);cock.position.set(-.85,.12,0);g.add(cock);
+  box(g,3.0,.22,.22,bodyM,1.9,.1,0,false);box(g,.25,.7,.1,bodyM,3.3,.4,0,false);
+  cyl(g,.08,.35,mat('chrome',0x9aa5b4),0,.95,0);
+  const rotor=new THREE.Group();rotor.position.y=1.12;g.add(rotor);
+  box(rotor,5.4,.04,.28,bladeM,0,0,0,false);box(rotor,.28,.04,5.4,bladeM,0,0,0,false);
+  const blur=new THREE.Mesh(new THREE.CircleGeometry(2.7,40),new THREE.MeshBasicMaterial({color:GL(0x9fd8ff,1),transparent:true,opacity:.07,depthWrite:false,side:THREE.DoubleSide}));
+  blur.userData.ownGeo=true;blur.rotation.x=-Math.PI/2;rotor.add(blur);
+  const tail=new THREE.Group();tail.position.set(3.45,.45,.12);g.add(tail);box(tail,.04,.7,.08,bladeM,0,0,0,false);
+  for(const sd of [-1,1]){box(g,2.1,.07,.07,bodyM,0,-.85,sd*.5,false);box(g,.07,.5,.07,bodyM,-.6,-.6,sd*.5,false);box(g,.07,.5,.07,bodyM,.6,-.6,sd*.5,false)}
+  halo(g,0xdff4ff,2.4,0,-.8,0,1);
+  const navR=halo(g,0xff3b4a,.7,.2,.05,.9,.95),navG=halo(g,0x3bff7a,.7,.2,.05,-.9,.95);
+  g.userData={rotor,tail,navR,navG};
+  return g;
+}
+function addHelicopter(parent,r,y,ph,sp){
+  const holder=new THREE.Group();parent.add(holder);
+  const body=makeHelicopter();holder.add(body);
+  const len=y-.4;                                   // chùm sáng đi thẳng xuống tới mặt đất
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.4,3.8,len,40,1,true),new THREE.MeshBasicMaterial({map:beamTex,color:GL(0xcfeeff,1),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+  beam.userData.ownGeo=true;beam.position.y=-len/2-.8;holder.add(beam);
+  halo(holder,0xbfe8ff,9,0,-y+.5,0,.7);              // vệt sáng trên mặt đất
+  const spot=new THREE.SpotLight(0xdff4ff,3200,y*1.6,.14,.7,2);spot.position.set(0,-.8,0);holder.add(spot);
+  const tg=new THREE.Object3D();tg.position.set(0,-y,0);holder.add(tg);spot.target=tg;
+  helis.push({holder,body,r,y,ph,sp});
 }
 
 /* ---------- Hình khối bo cong cho vỏ tòa nhà ---------- */
@@ -584,6 +619,9 @@ function buildTower(){
   ribbon.userData.ownGeo=true;roof.add(ribbon);
   const rn=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.09,8,false),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.4)}));
   rn.userData.ownGeo=true;rn.position.y=.34;roof.add(rn);
+  // hai trực thăng bay vòng trên đỉnh tòa nhà, chiếu đèn thẳng xuống
+  addHelicopter(roof,9.5,roofY+8,0,.11);
+  addHelicopter(roof,11.5,roofY+10.5,Math.PI,.09);
   const ledTex=textTexture([{text:'TNT',font:'800 150px Unbounded, sans-serif',color:'#ffffff',y:120},{text:'AI',font:'800 150px Unbounded, sans-serif',color:'#6fe3ff',y:300}],512,420);
   const led=new THREE.Mesh(new THREE.PlaneGeometry(5.6,4.6),new THREE.MeshBasicMaterial({map:ledTex,transparent:true,toneMapped:false,depthWrite:false,color:GL(0xffffff,1.6)}));
   led.userData.ownGeo=true;led.position.set(0,(TOTAL-3.3)*FH,(FD/2)*.97+.1);roof.add(led);
@@ -765,10 +803,10 @@ function loadFloorImage(f){
   w.loading=true;
   TEXLOADER.load(f.img,tex=>{
     tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=4;
-    const asp=tex.image.width/tex.image.height,h=Math.min(2.6,6.4/asp);
+    const asp=tex.image.width/tex.image.height,maxW=Math.min(8.4,FW*f.sc-1.2);let W=maxW,h=W/asp;if(h>2.75){h=2.75;W=h*asp}
     w.mesh.material.map=tex;w.mesh.material.color.setScalar(.95);w.mesh.material.needsUpdate=true;
-    w.mesh.scale.set(6.4,h,1);w.mesh.position.y=.45+h/2;
-    w.frame.scale.set(6.64,h+.24,1);w.frame.position.y=w.mesh.position.y;
+    w.mesh.scale.set(W,h,1);w.mesh.position.y=.22+h/2;
+    w.frame.scale.set(W+.24,h+.24,1);w.frame.position.y=w.mesh.position.y;
     w.loaded=true;w.loading=false;
   },undefined,()=>{w.loading=false;w.failed=true});
 }
@@ -803,7 +841,7 @@ function cameraGoal(){
     return {target,pos:SPH(target,distFor(H*.82,FW*1.5),1.26,.6)};
   }
   const y0=(view.floor-1)*FH,target=new THREE.Vector3(1.4,y0+.7,.5);
-  return {target,pos:SPH(target,distFor(FD*.6,FW*.58),.86,.42)};
+  return {target,pos:SPH(target,distFor(FD*.68,FW*.66),.86,.42)};
 }
 function flyTo(instant){
   goal=cameraGoal();
@@ -924,7 +962,8 @@ function frame(){
   if((cityTick++%4)===0)updateCity();
   pump(t);updateCabins(t,dt);updateJobs(t);
   if(goal){
-    camera.position.lerp(goal.pos,.075);controls.target.lerp(goal.target,.075);
+    const kf=1-Math.exp(-dt*5);                                   // tốc độ theo thời gian thật, không phụ thuộc số khung hình
+    camera.position.lerp(goal.pos,kf);controls.target.lerp(goal.target,kf);
     if(camera.position.distanceTo(goal.pos)<.05&&controls.target.distanceTo(goal.target)<.05)goal=null;
   }
   for(const r of rings)if(!reduce)r.rotation.z+=r.userData.spin*.01;
@@ -953,10 +992,26 @@ function frame(){
     const sw=Math.sin(t*6+w.userData.t0)*.5;w.userData.legs[0].rotation.x=sw;w.userData.legs[1].rotation.x=-sw;
     w.userData.arms[0].rotation.x=-sw*.6;w.userData.arms[1].rotation.x=sw*.6;
   }
+  for(const h of helis){
+    const ang=t*h.sp+h.ph,u=h.body.userData;
+    h.holder.position.set(Math.cos(ang)*h.r,h.y+Math.sin(t*.8+h.ph)*.35,Math.sin(ang)*h.r);
+    h.body.rotation.y=Math.PI/2-ang;h.body.rotation.z=Math.sin(t*.5+h.ph)*.04;
+    if(!reduce){u.rotor.rotation.y+=dt*38;u.tail.rotation.z+=dt*55}
+    const bl=Math.sin(t*5+h.ph)>0;u.navR.material.opacity=bl?.95:.15;u.navG.material.opacity=bl?.15:.95;
+  }
   controls.update();
   if(fxOn&&composer)composer.render();else renderer.render(scene,camera);
   // máy yếu thì tự tắt hiệu ứng phát sáng
   if(!fxLocked&&fxOn){const now=performance.now();if(lastT){fpsAcc+=now-lastT;fpsN++;if(fpsN>=90){if(fpsAcc/fpsN>48){if(++perfStrike>=2)setFx(false,true)}else perfStrike=0;fpsAcc=0;fpsN=0}}lastT=now}else lastT=0;
+  // tên tầng luôn nằm ở mặt tòa nhà quay về phía camera, chạy vòng theo khi xoay
+  {
+    let ux=camera.position.x,uz=camera.position.z;const Ln=Math.hypot(ux,uz)||1;ux/=Ln;uz/=Ln;
+    for(const l of floorLabels){
+      const f=l.floor,a=FW/2*f.sc,b=FD/2*f.sc,r=1/Math.sqrt(ux*ux/(a*a)+uz*uz/(b*b));
+      const m=1.2+1.6*Math.pow(Math.max(0,ux),3);       // chừa chỗ cho lõi thang máy khi nhìn từ bên phải
+      l.pos.set(ux*(r+m),(f.n-1)*FH+1.5,uz*(r+m));
+    }
+  }
   // nhãn HTML bám theo vị trí 3D
   const W=glHost.clientWidth,H=glHost.clientHeight;
   const place=(el,pos,show)=>{
@@ -1062,6 +1117,7 @@ document.querySelectorAll('#dockR .panel .ph').forEach(h=>{
   const open=()=>openOverlay(h.parentElement.dataset.p);
   h.addEventListener('click',open);h.addEventListener('keydown',e=>{if(e.key==='Enter')open()});
 });
+$('p-info').addEventListener('click',e=>{if(e.target.classList&&e.target.classList.contains('fimg'))openOverlay('info')});
 document.querySelectorAll('#toolbar [data-open]').forEach(b=>b.addEventListener('click',()=>openOverlay(b.dataset.open)));
 function wireRows(root){
   root.addEventListener('click',e=>{
