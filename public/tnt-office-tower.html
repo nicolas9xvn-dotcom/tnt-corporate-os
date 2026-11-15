@@ -95,7 +95,7 @@ h1 span{color:var(--or)}
 .link{color:var(--or);font-weight:600;text-decoration:none}
 .empty-note{color:var(--muted);padding:8px 2px}
 
-.topbar{position:absolute;z-index:3;left:248px;right:324px;top:12px;display:flex;gap:10px;align-items:center;pointer-events:none}
+.topbar{position:absolute;z-index:3;left:248px;right:324px;top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;pointer-events:none}
 .topbar>*{pointer-events:auto}
 .crumb{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:4px;background:rgba(14,8,48,.78);border:1px solid rgba(41,230,255,.3);font:700 11px var(--f-mono);letter-spacing:.12em;color:#7ff3ff;text-transform:uppercase}
 .btn{min-height:40px;padding:0 14px;border-radius:4px;border:1px solid var(--or);background:rgba(255,179,71,.12);color:var(--or);font:700 11px var(--f-mono);letter-spacing:.1em;cursor:pointer}
@@ -163,7 +163,7 @@ button:focus-visible,.fl:focus-visible,.arow:focus-visible,.ph:focus-visible{out
       </div>
     </div>
 
-    <div class="topbar"><div class="crumb" id="crumb">TOÀN TÒA NHÀ</div><button class="btn" id="back" type="button" hidden>⟲ TOÀN TÒA NHÀ</button><button class="btn" id="fx" type="button">✨ HIỆU ỨNG: BẬT</button></div>
+    <div class="topbar"><div class="crumb" id="crumb">TOÀN TÒA NHÀ</div><button class="btn" id="back" type="button" hidden>⟲ TOÀN TÒA NHÀ</button><button class="btn" id="fx" type="button">✨ HIỆU ỨNG: BẬT</button><button class="btn" id="replay" type="button" title="Phát lại các việc giao gần đây theo dữ liệu thật">▶ GIAO VIỆC GẦN ĐÂY</button><button class="btn" id="demo" type="button" title="Hiệu ứng minh họa, không phải dữ liệu thật">MÔ PHỎNG</button></div>
 
     <div class="dock dock-r" id="dockR">
       <div class="panel" data-p="overview"><div class="ph" tabindex="0" role="button"><span>Tổng quan</span><span class="ex">⤢</span></div><div class="pb" id="p-overview"></div></div>
@@ -365,7 +365,7 @@ function windowTexture(rep){
 }
 const city=new THREE.Group();scene.add(city);
 (function buildCity(){
-  const classes=[{n:70,h:[10,22],rep:[2,2]},{n:60,h:[24,42],rep:[2,4]},{n:26,h:[46,86],rep:[2,7]}];
+  const classes=[{n:46,h:[10,22],rep:[2,2]},{n:36,h:[24,40],rep:[2,4]},{n:14,h:[46,80],rep:[2,7]}];
   let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
   for(const k of classes){
     const m=new THREE.MeshStandardMaterial({color:0x0c1240,metalness:.5,roughness:.35,emissive:0xffffff,emissiveMap:windowTexture(k.rep),emissiveIntensity:.75});
@@ -384,7 +384,8 @@ const city=new THREE.Group();scene.add(city);
 
 /* ---------- Dữ liệu → tầng ---------- */
 let agents=[],byId=new Map(),tasksByAgent=new Map(),data=null,selected=null;
-let floors=[],TOTAL=10,tower=null,hitMeshes=[],floorHits=[],walkers=[],rings=[],beacon=null,fountains=[],vehicles=[];
+let floors=[],TOTAL=10,tower=null,hitMeshes=[],floorHits=[],walkers=[],rings=[],beacon=null,fountains=[],vehicles=[],cabins=[],jobs=[],pending=[];
+const taskSeen=new Map();
 const view={floor:null};  // null = toàn tòa nhà
 const labelsEl=$('labels');
 let floorLabels=[],agentLabels=[];
@@ -434,7 +435,7 @@ function disposeTower(){
   if(!tower)return;scene.remove(tower);
   tower.traverse(o=>{if(o.userData.ownGeo&&o.geometry)o.geometry.dispose()});
   floorLabels.forEach(l=>l.el.remove());agentLabels.forEach(l=>l.el.remove());
-  floorLabels=[];agentLabels=[];hitMeshes=[];floorHits=[];walkers=[];rings=[];beacon=null;fountains=[];vehicles=[];
+  floorLabels=[];agentLabels=[];hitMeshes=[];floorHits=[];walkers=[];rings=[];beacon=null;fountains=[];vehicles=[];cabins=[];jobs=[];pending=[];
 }
 function label(cls,html,color){
   const el=document.createElement('div');el.className='lbl '+cls;if(color)el.style.setProperty('--c',color);el.innerHTML=html;labelsEl.appendChild(el);return el;
@@ -489,6 +490,7 @@ function buildTower(){
     f.edgeMat=neon(shell,FW,FH-.35,FD,0,FH/2-.18,0,col.getHex(),.75);
     for(const sx of [-1,1])for(const sz of [-1,1])box(shell,.12,FH-.3,.12,mat('pillar'+f.n%2,f.n%2?0x29e6ff:0x8b5cff,{emissive:f.n%2?0x29e6ff:0x8b5cff,emissiveIntensity:.8}),sx*FW/2,FH/2-.15,sz*FD/2,false);
     // vùng bấm chọn tầng
+    f.sc=sc;buildCoreSegment(f,g,sc);
     const hit=new THREE.Mesh(boxGeo(FW*sc,FH,FD*sc),hitMat);hit.position.y=FH/2;hit.userData.floor=f.n;g.add(hit);floorHits.push(hit);f.hit=hit;
 
     // --- nội thất theo loại tầng + ảnh nội thất treo ở tường sau ---
@@ -499,8 +501,19 @@ function buildTower(){
     // nhãn tầng bên phải tòa nhà
     const el=label('fpill','',f.color);
     el.addEventListener('click',()=>selectFloor(f.n));
-    floorLabels.push({el,floor:f,pos:new THREE.Vector3(FW/2+2.2,(f.n-1)*FH+1.5,FD/2)});
+    floorLabels.push({el,floor:f,pos:new THREE.Vector3(FW/2+4.3,(f.n-1)*FH+1.5,FD/2)});
   }
+  // --- hai cabin thang máy chạy suốt chiều cao tòa nhà ---
+  cabins=[];
+  CABIN_Z.forEach((zc,i)=>{
+    const c=new THREE.Group();c.position.set(CORE_XS,0,zc);tower.add(c);
+    const cg=new THREE.Mesh(boxGeo(1.2,FH-.85,1.5),new THREE.MeshStandardMaterial({color:0x9fd8ff,transparent:true,opacity:.2,roughness:.1,metalness:.5,depthWrite:false}));
+    cg.position.y=(FH-.85)/2+.1;c.add(cg);
+    neon(c,1.2,FH-.85,1.5,0,(FH-.85)/2+.1,0,0xffb347,1);
+    box(c,1.2,.1,1.5,mat('cabFloor',0x2a2f66),0,.05,0,false);
+    halo(c,0x4fd8ff,2.2,0,1.5,0,.45);
+    cabins.push({g:c,i,zc,atFloor:1,freeAt:0,keys:[{t:0,y:0}],docks:[]});
+  });
   // --- mái + ăng-ten ---
   const roof=new THREE.Group();tower.add(roof);
   const roofY=TOTAL*FH;
@@ -558,6 +571,129 @@ function buildDeptFloor(f,g){
   makePlant(g,FW/2-.7,FD/2-.7);makePlant(g,-FW/2+.7,FD/2-.7,.85);
   if(f.n%2===0)makeServerRack(g,-FW/2+.8,-FD/2+.8);
 }
+/* ---------- Thang máy: lõi bên phải tòa nhà, 2 cabin chạy suốt các tầng ---------- */
+const CORE_XS=FW/2+1.1, CABIN_Z=[-.95,.95], CABIN_V=7, WALK_V=2.3;
+const coreGlassMat=new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.1,roughness:.05,metalness:.5,envMapIntensity:1.2,depthWrite:false,side:THREE.DoubleSide});
+function buildCoreSegment(f,g,sc){
+  box(g,1.7,.3,4.1,mat('slab',0x1c1450,{metalness:.7,roughness:.25}),CORE_XS,-.15,0);
+  neon(g,1.7,.3,4.1,CORE_XS,-.15,0,0x8b5cff);
+  const gl=new THREE.Mesh(boxGeo(1.5,FH-.35,3.9),coreGlassMat);gl.position.set(CORE_XS,FH/2-.18,0);g.add(gl);
+  neon(g,1.5,FH-.35,3.9,CORE_XS,FH/2-.18,0,0x4fd8ff,.8);
+  f.doors=[];f.doorAmt=[0,0];
+  const dm=mat('door',0x9fb0ff,{metalness:.7,roughness:.3,emissive:0x2a3a8c,emissiveIntensity:.5});
+  CABIN_Z.forEach(zc=>{
+    const bx0=FW/2*sc,bx1=FW/2+.35;   // cầu nối từ vỏ tòa nhà (thon dần) tới lõi
+    box(g,bx1-bx0+.1,.06,1.2,mat('bridge',0x2a3a8c,{emissive:0x1b2a7a,emissiveIntensity:.8}),(bx0+bx1)/2,.03,zc,false);
+    const dl=box(g,.05,FH-.9,.5,dm,FW/2+.37,(FH-.9)/2+.05,zc-.27,false);
+    const dr=box(g,.05,FH-.9,.5,dm,FW/2+.37,(FH-.9)/2+.05,zc+.27,false);
+    f.doors.push({dl,dr,zc});
+    neon(g,.06,FH-.8,1.2,FW/2+.38,(FH-.8)/2+.05,zc,0xffb347,.9);
+  });
+}
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+const pathLen=pts=>{let L=0;for(let i=1;i<pts.length;i++)L+=pts[i].distanceTo(pts[i-1]);return L};
+function pathAt(pts,u){ // vị trí tại tỉ lệ u dọc đường đi
+  const L=pathLen(pts);if(L<1e-6)return pts[0].clone();let d=Math.max(0,Math.min(1,u))*L;
+  for(let i=1;i<pts.length;i++){const l=pts[i].distanceTo(pts[i-1]);if(d<=l)return pts[i-1].clone().lerp(pts[i],l?d/l:0);d-=l}
+  return pts[pts.length-1].clone();
+}
+const deskPoint=a=>V3(a.fx+1.1,0,a.fz+.9);                 // chỗ đứng cạnh bàn
+function pathToDoor(a,zc){
+  const f=floors[a.floor-1],xe=FW/2*f.sc-.55,zA=FD/2-1.0;
+  return [deskPoint(a),V3(a.fx+1.1,0,zA),V3(xe,0,zA),V3(xe,0,zc),V3(FW/2+.34,0,zc)];
+}
+function cabinY(c,t){
+  const k=c.keys;if(t<=k[0].t)return k[0].y;
+  for(let i=1;i<k.length;i++)if(t<=k[i].t){const a=k[i-1],b=k[i],u=(t-a.t)/Math.max(.001,b.t-a.t),e=u*u*(3-2*u);return a.y+(b.y-a.y)*e}
+  return k[k.length-1].y;
+}
+function scheduleJob(req,t){
+  const {from,to,kind}=req;
+  if(!from||!to||!from.parts||!to.parts||from===to)return;
+  const f1=from.floor,f2=to.floor,job={from,to,kind,fig:null,parent:null,last:null};
+  if(f1===f2){ // cùng tầng: đi bộ thẳng qua lối đi
+    const zA=FD/2-1.0;
+    job.same=true;job.path1=[deskPoint(from),V3(from.fx+1.1,0,zA),V3(to.fx+1.1,0,zA),deskPoint(to)];
+    job.t0=t;job.tEnd=t+pathLen(job.path1)/WALK_V+.9;
+  }else{
+    let c=null,best=1e9;
+    for(const cb of cabins){const est=Math.max(t,cb.freeAt)+Math.abs(cb.atFloor-f1)*FH/CABIN_V;if(est<best){best=est;c=cb}}
+    job.cab=c;job.same=false;
+    job.path1=pathToDoor(from,c.zc);job.path2=pathToDoor(to,c.zc).reverse();
+    const d1=pathLen(job.path1)/WALK_V,d2=pathLen(job.path2)/WALK_V;
+    const T0=Math.max(t,c.freeAt-d1),tMove=Math.max(T0,c.freeAt);
+    const y1=(f1-1)*FH,y2=(f2-1)*FH,ya=(c.atFloor-1)*FH;
+    const tAtOrigin=tMove+(c.atFloor!==f1?Math.abs(ya-y1)/CABIN_V+.5:0);
+    const tBoard=Math.max(T0+d1,tAtOrigin)+.25,tEnter=tBoard+.6,tDepart=tEnter+.4;
+    const tArrive=tDepart+Math.abs(y2-y1)/CABIN_V+.7,tExit=tArrive+.4,tEnd=tExit+d2+.9;
+    if(c.atFloor!==f1){c.keys.push({t:tMove,y:ya},{t:tAtOrigin-.45,y:y1})}
+    c.keys.push({t:tDepart,y:y1},{t:tArrive-.3,y:y2});
+    c.docks.push({floor:f1,t0:tAtOrigin-.45,t1:tEnter+.4},{floor:f2,t0:tArrive-.1,t1:tExit+.6});
+    c.freeAt=tExit+.3;c.atFloor=f2;
+    Object.assign(job,{t0:T0,d1,d2,tBoard,tEnter,tDepart,tArrive,tExit,tEnd});
+  }
+  const verb=kind==='tra'?'Trả kết quả':kind==='demo'?'[MÔ PHỎNG] Giao việc':'Giao việc';
+  log(`${hmNow()} · ${verb}: ${shortName(from.name)} (T${f1}) → ${shortName(to.name)} (T${f2})`);
+  jobs.push(job);
+}
+function startFigure(j){
+  const fig=makeFigure(new THREE.Color(j.from.color||'#ffffff'),false);fig.scale.setScalar(.92);
+  const pc=j.kind==='tra'?0x2de2c0:j.kind==='demo'?0xb9b3e8:0xffb347;
+  const parcel=new THREE.Mesh(boxGeo(.3,.3,.3),new THREE.MeshBasicMaterial({color:GL(pc,2)}));parcel.position.set(0,2.0,0);fig.add(parcel);
+  halo(fig,pc,1.5,0,1.7,0,.85);fig.userData.parcel=parcel;j.fig=fig;
+}
+function updateJobs(t){
+  for(let i=jobs.length-1;i>=0;i--){
+    const j=jobs[i];if(t<j.t0)continue;
+    if(!j.fig)startFigure(j);
+    if(t>=j.tEnd){ // bàn giao xong
+      if(j.parent)j.parent.remove(j.fig);j.to.handover=t;jobs.splice(i,1);continue;
+    }
+    const fg=floors[j.from.floor-1].group,tg=floors[j.to.floor-1].group;
+    let parent,pos,moving=false;
+    if(j.same){const L=j.tEnd-.9-j.t0,u=(t-j.t0)/L;pos=pathAt(j.path1,u);parent=fg;moving=u<1}
+    else if(t<j.tBoard){const u=(t-j.t0)/j.d1;pos=pathAt(j.path1,u);parent=fg;moving=u<1}
+    else if(t<j.tEnter){const u=(t-j.tBoard)/.6;pos=j.path1[j.path1.length-1].clone().lerp(V3(CORE_XS,0,j.cab.zc),u);parent=fg;moving=true}
+    else if(t<j.tArrive){parent=j.cab.g;pos=V3(0,0,0)}
+    else if(t<j.tExit){const u=(t-j.tArrive)/.4;pos=V3(CORE_XS,0,j.cab.zc).lerp(j.path2[0],u);parent=tg;moving=true}
+    else{const u=(t-j.tExit)/j.d2;pos=pathAt(j.path2,u);parent=tg;moving=u<1}
+    if(j.parent!==parent){parent.add(j.fig);j.parent=parent}
+    if(j.last&&j.parent===j.lastParent){const dx=pos.x-j.last.x,dz=pos.z-j.last.z;if(dx*dx+dz*dz>1e-6)j.fig.rotation.y=Math.atan2(-dx,-dz)}
+    j.last=pos.clone();j.lastParent=j.parent;
+    j.fig.position.copy(pos);
+    const u=j.fig.userData,sw=moving?Math.sin(t*9)*.55:0;
+    u.legs[0].rotation.x=sw;u.legs[1].rotation.x=-sw;u.arms[0].rotation.x=-sw*.5;u.arms[1].rotation.x=sw*.5;
+    u.parcel.rotation.y=t*2;u.parcel.position.y=2.0+Math.sin(t*3)*.05;
+  }
+}
+function updateCabins(t,dt){
+  for(const c of cabins){
+    const y=cabinY(c,t);c.g.position.y=y;
+    c.g.visible=view.floor===null||y<view.floor*FH-.1;
+    if(c.keys.length>60){const cut=c.keys.findIndex(k=>k.t>t-8);if(cut>1)c.keys.splice(0,cut-1)}
+    c.docks=c.docks.filter(d=>d.t1>t-2);
+  }
+  for(const f of floors){
+    if(!f.group.visible||!f.doors)continue;
+    f.doors.forEach((d,ci)=>{
+      const open=cabins[ci]&&cabins[ci].docks.some(k=>k.floor===f.n&&t>=k.t0&&t<=k.t1)?1:0;
+      f.doorAmt[ci]+=(open-f.doorAmt[ci])*Math.min(1,dt*6);
+      d.dl.position.z=d.zc-.27-.26*f.doorAmt[ci];d.dr.position.z=d.zc+.27+.26*f.doorAmt[ci];
+    });
+  }
+}
+function pump(t){while(pending.length&&jobs.length<8)scheduleJob(pending.shift(),t)}
+function enqueue(kind,from,to){if(from&&to&&pending.length<12)pending.push({kind,from,to})}
+function replayReal(){
+  const list=(data?.recent_tasks||[]).filter(x=>x.from_agent_id&&byId.get(x.from_agent_id)&&byId.get(x.agent_id)).slice(0,6).reverse();
+  if(!list.length){log(hmNow()+' · Chưa có việc nào được giao lại trong dữ liệu gần đây');refreshUI();return}
+  list.forEach(x=>enqueue('giao',byId.get(x.from_agent_id),byId.get(x.agent_id)));
+}
+function runDemo(){
+  const pool=agents.filter(a=>a.parts);if(pool.length<2)return;
+  for(let i=0;i<4;i++){const a=pool[Math.floor(Math.random()*pool.length)];let b=a,n=0;while((b===a||b.floor===a.floor)&&n++<20)b=pool[Math.floor(Math.random()*pool.length)];if(b!==a)enqueue('demo',a,b)}
+}
+
 const TEXLOADER=new THREE.TextureLoader();
 function makeWallImage(f,g,sc){
   const z=-FD/2*sc+.14;
@@ -606,11 +742,11 @@ function distFor(halfH,halfW){
 function cameraGoal(){
   if(view.floor===null){
     const H=TOTAL*FH;
-    const target=new THREE.Vector3(0,H*.46,0);
-    return {target,pos:SPH(target,distFor(H*.72,FW*1.5),1.28,.62)};
+    const target=new THREE.Vector3(1.2,H*.5,0);
+    return {target,pos:SPH(target,distFor(H*.78,FW*1.5),1.26,.6)};
   }
-  const y0=(view.floor-1)*FH,target=new THREE.Vector3(0,y0+.7,.5);
-  return {target,pos:SPH(target,distFor(FD*.6,FW*.5),.86,.42)};
+  const y0=(view.floor-1)*FH,target=new THREE.Vector3(1.4,y0+.7,.5);
+  return {target,pos:SPH(target,distFor(FD*.6,FW*.58),.86,.42)};
 }
 function flyTo(instant){
   goal=cameraGoal();
@@ -669,6 +805,8 @@ function selectAgent(a){
 }
 $('back').addEventListener('click',()=>selectFloor(null));
 $('fx').addEventListener('click',()=>setFx(!fxOn,false));
+$('replay').addEventListener('click',replayReal);
+$('demo').addEventListener('click',runDemo);
 $('fx').textContent='✨ HIỆU ỨNG: '+(fxOn?'BẬT':'TẮT');
 $('up').addEventListener('click',()=>selectFloor(Math.min(TOTAL,(view.floor||0)+1)));
 $('down').addEventListener('click',()=>selectFloor(view.floor?Math.max(1,view.floor-1):null));
@@ -720,10 +858,13 @@ function applyStates(){
 
 /* ---------- Vòng lặp vẽ ---------- */
 const t0=performance.now(),tmp=new THREE.Vector3();
+let prevT=0;
 function frame(){
   requestAnimationFrame(frame);
   if(!tower)return;
   const t=(performance.now()-t0)/1000;
+  const dt=Math.min(.1,t-prevT);prevT=t;
+  pump(t);updateCabins(t,dt);updateJobs(t);
   if(goal){
     camera.position.lerp(goal.pos,.075);controls.target.lerp(goal.target,.075);
     if(camera.position.distanceTo(goal.pos)<.05&&controls.target.distanceTo(goal.target)<.05)goal=null;
@@ -746,6 +887,7 @@ function frame(){
       p.ringMat.opacity=st==='bad'?(.3+.4*(Math.sin(t*6)>0?1:0)):st==='wait'?.55+.25*Math.sin(t*2.5):st==='off'?.12:.32;
     }
     if(selected===a)p.ringMat.opacity=.95;
+    if(a.handover&&t-a.handover<1.4)p.ringMat.opacity=1;
   }
   for(const w of walkers){
     const [x0,x1]=w.userData.span,L=x1-x0,s=((t+w.userData.t0)*w.userData.speed)%(2*L),x=s<L?x0+s:x1-(s-L);
@@ -905,6 +1047,16 @@ function apply(json){
   if(key!==layoutKey){floors=[];buildTower();layoutKey=key}
   tasksByAgent=new Map();
   for(const t of json.recent_tasks||[]){if(!tasksByAgent.has(t.agent_id))tasksByAgent.set(t.agent_id,[]);tasksByAgent.get(t.agent_id).push(t)}
+  // việc giao lại MỚI xuất hiện → người đưa việc đi thang máy xuống; việc vừa xong → mang kết quả lên
+  for(const t of json.recent_tasks||[]){
+    const prev=taskSeen.get(t.id);
+    if(!firstLoad&&t.from_agent_id){
+      const up=byId.get(t.from_agent_id),down=byId.get(t.agent_id);
+      if(prev===undefined&&(Date.now()-new Date(t.created_at).getTime())<180000)enqueue('giao',up,down);
+      else if(prev&&prev!=='done'&&t.status==='done')enqueue('tra',down,up);
+    }
+    taskSeen.set(t.id,t.status);
+  }
   for(const a of agents){
     const p=prevStatus.get(a.id);
     if(!firstLoad&&p!==undefined&&p!==a.status){
@@ -932,7 +1084,7 @@ async function poll(){
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 resize();poll();setInterval(poll,POLL_MS);requestAnimationFrame(frame);
-window.__tower={scene,camera,controls,selectFloor,selectAgent,get floors(){return floors},get agents(){return agents}};
+window.__tower={scene,camera,controls,selectFloor,selectAgent,runDemo,replayReal,get jobs(){return jobs},get cabins(){return cabins},get floors(){return floors},get agents(){return agents}};
 </script>
 </body>
 </html>

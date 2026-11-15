@@ -93,11 +93,21 @@ export async function GET() {
     stuck_running: a.status === "running" && !activeAgentIds.has(a.id),
   }));
 
+  // A delegated task points to the task that spawned it (parent_task_id);
+  // the agent who owns that parent task is the one who handed the work down.
+  const parentIds = [...new Set((tasks ?? []).map((t) => t.parent_task_id).filter((x): x is string => !!x))];
+  const { data: parentTasks } =
+    parentIds.length > 0
+      ? await supabase.from("tasks").select("id, agent_id").in("id", parentIds)
+      : { data: [] };
+  const parentAgent = new Map((parentTasks ?? []).map((p) => [p.id, p.agent_id as string]));
+
   const recentTasks = (tasks ?? []).map((t) => ({
     id: t.id,
     agent_id: t.agent_id,
     status: t.status,
     delegated: t.parent_task_id !== null,
+    from_agent_id: t.parent_task_id ? (parentAgent.get(t.parent_task_id) ?? null) : null,
     created_at: t.created_at,
     // Truncated on purpose: this feeds a screen that may be shared or
     // recorded, and task inputs can contain customer details.
