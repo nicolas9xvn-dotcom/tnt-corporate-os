@@ -508,6 +508,20 @@ function roundedPrism(w,d,h,r){ // lăng trụ bo góc, đáy y=0, đỉnh y=h
   if(!g){g=new THREE.ExtrudeGeometry(roundedShape(w,d,r),{depth:h,bevelEnabled:false,curveSegments:10});g.rotateX(-Math.PI/2);prismCache.set(k,g)}
   return g;
 }
+function holedPrism(w,d,h,r,sc){ // sàn bo góc có lỗ chữ nhật cho lõi thang máy (toạ độ lõi cố định, vỏ co theo sc)
+  const k=['h',w,d,h,r,sc].join('|');let g=prismCache.get(k);
+  if(!g){
+    const sh=roundedShape(w,d,r),hx=CORE_XS/sc,hw=.875/sc,hd=2.05/sc,hole=new THREE.Path();
+    hole.moveTo(hx-hw,-hd);hole.lineTo(hx+hw,-hd);hole.lineTo(hx+hw,hd);hole.lineTo(hx-hw,hd);hole.lineTo(hx-hw,-hd);
+    sh.holes.push(hole);
+    g=new THREE.ExtrudeGeometry(sh,{depth:h,bevelEnabled:false,curveSegments:10});g.rotateX(-Math.PI/2);prismCache.set(k,g);
+  }
+  return g;
+}
+function rNeonGeo(parent,geo,y,color,opacity){
+  const m=new THREE.LineBasicMaterial({color:GL(color),transparent:true,opacity});
+  const l=new THREE.LineSegments(new THREE.EdgesGeometry(geo,30),m);l.userData.ownGeo=true;l.position.y=y;parent.add(l);return m;
+}
 function rNeon(parent,w,d,h,r,y,color,opacity){
   const k=[w,d,h,r].join('|');let g=prismEdgeCache.get(k);
   if(!g){g=new THREE.EdgesGeometry(roundedPrism(w,d,h,r),30);prismEdgeCache.set(k,g)}
@@ -556,11 +570,12 @@ function buildTower(){
     // vỏ tòa nhà bo cong, thon dần theo đường cong: bục đế rộng, thân thu nhỏ lên đỉnh
     const sc=taperScale(f.n),RC=2.4;
     const shell=new THREE.Group();shell.scale.set(sc,1,sc);g.add(shell);f.shell=shell;
-    const slab=new THREE.Mesh(roundedPrism(FW+.6,FD+.6,.3,RC+.3),mat('slab',0x1c1450,{metalness:.7,roughness:.25}));
+    const slabGeo=holedPrism(FW+.6,FD+.6,.3,RC+.3,sc);
+    const slab=new THREE.Mesh(slabGeo,mat('slab',0x1c1450,{metalness:.7,roughness:.25}));
     slab.position.y=-.3;slab.castShadow=true;slab.receiveShadow=true;shell.add(slab);
-    f.slabEdge=rNeon(shell,FW+.6,FD+.6,.3,RC+.3,-.3,f.n%2?0x29e6ff:0x8b5cff,.95);
-    shell.add(Object.assign(new THREE.Mesh(roundedPrism(FW-.2,FD-.2,.06,RC),mat('inner',0x141a48,{emissive:0x0b1030,emissiveIntensity:.8})),{}));
-    const grid=new THREE.GridHelper(FW-1.6,12,0x29e6ff,0x2a3a8c);grid.scale.z=(FD-1.6)/(FW-1.6);grid.position.y=.07;grid.material.transparent=true;grid.material.opacity=.28;shell.add(grid);
+    f.slabEdge=rNeonGeo(shell,slabGeo,-.3,f.n%2?0x29e6ff:0x8b5cff,.95);
+    shell.add(new THREE.Mesh(holedPrism(FW-.2,FD-.2,.06,RC,sc),mat('inner',0x141a48,{emissive:0x0b1030,emissiveIntensity:.8})));
+    const grid=new THREE.GridHelper(FW-1.6,12,0x29e6ff,0x2a3a8c);grid.scale.z=(FD-1.6)/(FW-1.6);grid.position.y=.07;grid.position.x=-1.3;grid.scale.x=.78;grid.material.transparent=true;grid.material.opacity=.28;shell.add(grid);
     f.glassMat=new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.09,roughness:.05,metalness:.6,envMapIntensity:1.3,depthWrite:false,side:THREE.DoubleSide});
     shell.add(new THREE.Mesh(roundedPrism(FW,FD,FH-.35,RC),f.glassMat));
     f.edgeMat=rNeon(shell,FW,FD,FH-.35,RC,0,col.getHex(),.75);
@@ -568,7 +583,7 @@ function buildTower(){
     const cx=FW/2-RC+RC*.7071,cz=FD/2-RC+RC*.7071,sm=mat('spine'+f.n%2,0x29e6ff,{emissive:0x29e6ff,emissiveIntensity:1.2});
     for(const sx of [-1,1])for(const sz of [-1,1])box(shell,.1,FH-.35,.1,sm,sx*cx,FH/2-.18,sz*cz,false);
     // vùng bấm chọn tầng
-    f.sc=sc;buildCoreSegment(f,g,sc);
+    f.sc=sc;buildCoreSegment(f,g);
     const hit=new THREE.Mesh(boxGeo(FW*sc,FH,FD*sc),hitMat);hit.position.y=FH/2;hit.userData.floor=f.n;g.add(hit);floorHits.push(hit);f.hit=hit;
 
     // --- nội thất theo loại tầng + ảnh nội thất treo ở tường sau ---
@@ -635,10 +650,11 @@ function buildTower(){
 function buildDeptFloor(f,g){
   const n=f.agents.length,cols=Math.min(4,Math.max(1,Math.ceil(n/3))),rows=Math.ceil(n/cols);
   const sx=cols>=4?3.1:3.6,sz=2.6;
-  const half=FW/2*f.sc-1.6,span=(cols-1)*sx,kx=span>2*half?(2*half)/Math.max(.01,span):1;
+  const xmin=-(FW/2*f.sc-1.4),xmax=2.1,cx0=(xmin+xmax)/2,half=(xmax-xmin)/2-.9;   // vùng đặt bàn: bên trái lõi thang máy
+  const span=(cols-1)*sx,kx=span>2*half?(2*half)/Math.max(.01,span):1;
   f.agents.forEach((a,k)=>{
     const c=k%cols,r=Math.floor(k/cols);
-    const x=(c-(cols-1)/2)*sx*kx,z=-FD/2+2.0+r*sz-((rows>2)?0:-.4);
+    const x=cx0+(c-(cols-1)/2)*sx*kx,z=-FD/2+2.0+r*sz-((rows>2)?0:-.4);
     a.fx=x;a.fz=Math.min(z,FD/2-2.2);a.floor=f.n;a.color=f.color;
     const d=new THREE.Group();d.position.set(x,0,a.fz);g.add(d);
     box(d,1.7,.06,.85,mat('desk',0x3a4078,{metalness:.35,roughness:.45}),0,.76,0);
@@ -667,23 +683,22 @@ function buildDeptFloor(f,g){
   makePlant(g,FW/2-.7,FD/2-.7);makePlant(g,-FW/2+.7,FD/2-.7,.85);
   if(f.n%2===0)makeServerRack(g,-FW/2+.8,-FD/2+.8);
 }
-/* ---------- Thang máy: lõi bên phải tòa nhà, 2 cabin chạy suốt các tầng ---------- */
-const CORE_XS=FW/2+1.1, CABIN_Z=[-.95,.95], CABIN_V=7, WALK_V=2.3;
+/* ---------- Thang máy: lõi nằm TRONG tòa nhà, sàn các tầng khoét lỗ cho cabin chạy qua ---------- */
+const CORE_XS=3.45, CABIN_Z=[-.95,.95], CABIN_V=9, WALK_V=2.8;
 const coreGlassMat=new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.1,roughness:.05,metalness:.5,envMapIntensity:1.2,depthWrite:false,side:THREE.DoubleSide});
-function buildCoreSegment(f,g,sc){
-  box(g,1.7,.3,4.1,mat('slab',0x1c1450,{metalness:.7,roughness:.25}),CORE_XS,-.15,0);
-  neon(g,1.7,.3,4.1,CORE_XS,-.15,0,0x8b5cff);
+function buildCoreSegment(f,g){
   const gl=new THREE.Mesh(boxGeo(1.5,FH-.35,3.9),coreGlassMat);gl.position.set(CORE_XS,FH/2-.18,0);g.add(gl);
   neon(g,1.5,FH-.35,3.9,CORE_XS,FH/2-.18,0,0x4fd8ff,.8);
   f.doors=[];f.doorAmt=[0,0];
   const dm=mat('door',0x9fb0ff,{metalness:.7,roughness:.3,emissive:0x2a3a8c,emissiveIntensity:.5});
+  const lobbyM=mat('elevLobby',0x2a3a8c,{emissive:0x1b2a7a,emissiveIntensity:.9});
   CABIN_Z.forEach(zc=>{
-    const bx0=FW/2*sc,bx1=FW/2+.35;   // cầu nối từ vỏ tòa nhà (thon dần) tới lõi
-    box(g,bx1-bx0+.1,.06,1.2,mat('bridge',0x2a3a8c,{emissive:0x1b2a7a,emissiveIntensity:.8}),(bx0+bx1)/2,.03,zc,false);
-    const dl=box(g,.05,FH-.9,.5,dm,FW/2+.37,(FH-.9)/2+.05,zc-.27,false);
-    const dr=box(g,.05,FH-.9,.5,dm,FW/2+.37,(FH-.9)/2+.05,zc+.27,false);
-    f.doors.push({dl,dr,zc});
-    neon(g,.06,FH-.8,1.2,FW/2+.38,(FH-.8)/2+.05,zc,0xffb347,.9);
+    const dx=CORE_XS-.78;                       // cửa thang quay về phía khu bàn làm việc
+    const dl=box(g,.05,FH-.9,.5,dm,dx,(FH-.9)/2+.05,zc-.27,false);
+    const dr=box(g,.05,FH-.9,.5,dm,dx,(FH-.9)/2+.05,zc+.27,false);
+    f.doors.push({dl,dr,zc,dx});
+    neon(g,.06,FH-.8,1.2,dx-.01,(FH-.8)/2+.05,zc,0xffb347,.9);
+    box(g,.9,.02,1.1,lobbyM,CORE_XS-1.25,.075,zc,false);   // thảm sáng trước cửa thang
   });
 }
 const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
@@ -693,23 +708,27 @@ function pathAt(pts,u){ // vị trí tại tỉ lệ u dọc đường đi
   for(let i=1;i<pts.length;i++){const l=pts[i].distanceTo(pts[i-1]);if(d<=l)return pts[i-1].clone().lerp(pts[i],l?d/l:0);d-=l}
   return pts[pts.length-1].clone();
 }
-const deskPoint=a=>V3(a.fx+1.1,0,a.fz+.9);                 // chỗ đứng cạnh bàn
+const deskPoint=a=>V3(Math.min(2.2,a.fx+1.1),0,a.fz+.9);   // chỗ đứng cạnh bàn
+const AISLE_X=2.3, DOOR_STAND_X=CORE_XS-1.0;
 function pathToDoor(a,zc){
-  const f=floors[a.floor-1],xe=FW/2*f.sc-.55,zA=FD/2-1.0;
-  return [deskPoint(a),V3(a.fx+1.1,0,zA),V3(xe,0,zA),V3(xe,0,zc),V3(FW/2+.34,0,zc)];
+  const zA=FD/2-1.0,dp=deskPoint(a);
+  return [dp,V3(dp.x,0,zA),V3(AISLE_X,0,zA),V3(AISLE_X,0,zc),V3(DOOR_STAND_X,0,zc)];
 }
 function cabinY(c,t){
   const k=c.keys;if(t<=k[0].t)return k[0].y;
   for(let i=1;i<k.length;i++)if(t<=k[i].t){const a=k[i-1],b=k[i],u=(t-a.t)/Math.max(.001,b.t-a.t),e=u*u*(3-2*u);return a.y+(b.y-a.y)*e}
   return k[k.length-1].y;
 }
-function scheduleJob(req,t){
-  const {from,to,kind}=req;
-  if(!from||!to||!from.parts||!to.parts||from===to)return;
-  const f1=from.floor,f2=to.floor,job={from,to,kind,fig:null,parent:null,last:null};
+const dirWord=(f1,f2)=>f2>f1?'lên':f2<f1?'xuống':'sang';
+// Một chuyến đi của agent: leg 1 = từ bàn mình tới bàn người giao việc, leg 2 = quay về bàn mình
+function scheduleLeg(trav,dest,kind,leg,t){
+  if(!trav||!dest||!trav.parts||!dest.parts||trav===dest){if(trav)trav.away=0,trav.parts&&(trav.parts.fig.visible=true);return}
+  const from=leg===1?trav:dest,to=leg===1?dest:trav;
+  const f1=from.floor,f2=to.floor,job={trav,dest,kind,leg,from,to,fig:null,parent:null,last:null};
+  job.parcel=leg===1?kind==='tra':kind!=='tra';
   if(f1===f2){ // cùng tầng: đi bộ thẳng qua lối đi
-    const zA=FD/2-1.0;
-    job.same=true;job.path1=[deskPoint(from),V3(from.fx+1.1,0,zA),V3(to.fx+1.1,0,zA),deskPoint(to)];
+    const zA=FD/2-1.0,a=deskPoint(from),b=deskPoint(to);
+    job.same=true;job.path1=[a,V3(a.x,0,zA),V3(b.x,0,zA),b];
     job.t0=t;job.tEnd=t+pathLen(job.path1)/WALK_V+.9;
   }else{
     let c=null,best=1e9;
@@ -728,22 +747,30 @@ function scheduleJob(req,t){
     c.freeAt=tExit+.3;c.atFloor=f2;
     Object.assign(job,{t0:T0,d1,d2,tBoard,tEnter,tDepart,tArrive,tExit,tEnd});
   }
-  const verb=kind==='tra'?'Trả kết quả':kind==='demo'?'[MÔ PHỎNG] Giao việc':'Giao việc';
-  log(`${hmNow()} · ${verb}: ${shortName(from.name)} (T${f1}) → ${shortName(to.name)} (T${f2})`);
+  if(leg===1){
+    trav.away=(trav.away||0)+1;
+    const verb=kind==='tra'?'mang kết quả':kind==='demo'?'[MÔ PHỎNG] nhận việc từ':'nhận việc từ';
+    log(`${hmNow()} · ${shortName(trav.name)} (T${trav.floor}) đi ${f1===f2?'sang':'thang máy '+dirWord(f1,f2)} ${verb} ${kind==='tra'?'cho ':''}${shortName(dest.name)} (T${dest.floor})`);
+  }
   jobs.push(job);
 }
 function startFigure(j){
-  const fig=makeFigure(new THREE.Color(j.from.color||'#ffffff'),false);fig.scale.setScalar(.92);
-  const pc=j.kind==='tra'?0x2de2c0:j.kind==='demo'?0xb9b3e8:0xffb347;
-  const parcel=new THREE.Mesh(boxGeo(.3,.3,.3),new THREE.MeshBasicMaterial({color:GL(pc,2)}));parcel.position.set(0,2.0,0);fig.add(parcel);
-  halo(fig,pc,1.5,0,1.7,0,.85);fig.userData.parcel=parcel;j.fig=fig;
+  const fig=makeFigure(new THREE.Color(j.trav.color||'#ffffff'),false);fig.scale.setScalar(.92);
+  const pc=j.kind==='demo'?0xb9b3e8:(j.kind==='tra'?0x2de2c0:0xffb347);
+  const parcel=new THREE.Mesh(boxGeo(.3,.3,.3),new THREE.MeshBasicMaterial({color:GL(pc,2)}));parcel.position.set(0,2.0,0);parcel.visible=j.parcel;fig.add(parcel);
+  const hl=halo(fig,pc,1.5,0,1.7,0,.85);hl.visible=j.parcel;
+  fig.userData.parcel=parcel;j.fig=fig;
+  if(j.leg===1&&j.trav.parts)j.trav.parts.fig.visible=false;      // agent rời bàn: nhân vật ngồi ở bàn biến mất trong lúc đi
 }
 function updateJobs(t){
   for(let i=jobs.length-1;i>=0;i--){
     const j=jobs[i];if(t<j.t0)continue;
     if(!j.fig)startFigure(j);
-    if(t>=j.tEnd){ // bàn giao xong
-      if(j.parent)j.parent.remove(j.fig);j.to.handover=t;jobs.splice(i,1);continue;
+    if(t>=j.tEnd){ // tới nơi
+      if(j.parent)j.parent.remove(j.fig);jobs.splice(i,1);
+      if(j.leg===1){j.dest.handover=t;scheduleLeg(j.trav,j.dest,j.kind,2,t+.8)}   // giao-nhận xong → quay về bàn
+      else{j.trav.handover=t;j.trav.away=Math.max(0,(j.trav.away||1)-1);if(!j.trav.away&&j.trav.parts)j.trav.parts.fig.visible=true}
+      continue;
     }
     const fg=floors[j.from.floor-1].group,tg=floors[j.to.floor-1].group;
     let parent,pos,moving=false;
@@ -778,8 +805,9 @@ function updateCabins(t,dt){
     });
   }
 }
-function pump(t){while(pending.length&&jobs.length<8)scheduleJob(pending.shift(),t)}
-function enqueue(kind,from,to){if(from&&to&&pending.length<12)pending.push({kind,from,to})}
+function pump(t){while(pending.length&&jobs.length<8){const r=pending.shift();scheduleLeg(r.trav,r.dest,r.kind,1,t)}}
+// dest = người giao việc (hoặc nhận kết quả); trav = agent đi thang máy
+function enqueue(kind,dest,trav){if(dest&&trav&&pending.length<12)pending.push({kind,dest,trav})}
 function replayReal(){
   const list=(data?.recent_tasks||[]).filter(x=>x.from_agent_id&&byId.get(x.from_agent_id)&&byId.get(x.agent_id)).slice(0,6).reverse();
   if(!list.length){log(hmNow()+' · Chưa có việc nào được giao lại trong dữ liệu gần đây');refreshUI();return}
@@ -787,16 +815,17 @@ function replayReal(){
 }
 function runDemo(){
   const pool=agents.filter(a=>a.parts);if(pool.length<2)return;
-  for(let i=0;i<4;i++){const a=pool[Math.floor(Math.random()*pool.length)];let b=a,n=0;while((b===a||b.floor===a.floor)&&n++<20)b=pool[Math.floor(Math.random()*pool.length)];if(b!==a)enqueue('demo',a,b)}
+  for(let i=0;i<3;i++){const a=pool[Math.floor(Math.random()*pool.length)];let b=a,n=0;while((b===a||b.floor===a.floor)&&n++<20)b=pool[Math.floor(Math.random()*pool.length)];if(b!==a)enqueue('demo',a,b)}
 }
 
 const TEXLOADER=new THREE.TextureLoader();
 function makeWallImage(f,g,sc){
   const z=-FD/2*sc+.14;
+  const xmin=-(FW/2*sc-1.4),xmax=2.1;f.imgCx=(xmin+xmax)/2;f.imgMaxW=Math.min(8.4,xmax-xmin+.6);
   const frame=new THREE.Mesh(boxGeo(1,1,.05),mat('imgFrame',0x0d1238,{metalness:.6,roughness:.3}));
-  frame.scale.set(6.7,2.1,1);frame.position.set(0,1.6,z-.03);g.add(frame);
+  frame.scale.set(6.7,2.1,1);frame.position.set(f.imgCx,1.6,z-.03);g.add(frame);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x232a6a,toneMapped:false}));
-  m.userData.ownGeo=true;m.scale.set(6.4,1.9,1);m.position.set(0,1.6,z);g.add(m);
+  m.userData.ownGeo=true;m.scale.set(6.4,1.9,1);m.position.set(f.imgCx,1.6,z);g.add(m);
   f.wallImg={mesh:m,frame,loaded:false,loading:false,failed:false};
 }
 function loadFloorImage(f){
@@ -804,7 +833,7 @@ function loadFloorImage(f){
   w.loading=true;
   TEXLOADER.load(f.img,tex=>{
     tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=4;
-    const asp=tex.image.width/tex.image.height,maxW=Math.min(8.4,FW*f.sc-1.2);let W=maxW,h=W/asp;if(h>2.75){h=2.75;W=h*asp}
+    const asp=tex.image.width/tex.image.height,maxW=f.imgMaxW;let W=maxW,h=W/asp;if(h>2.75){h=2.75;W=h*asp}
     w.mesh.material.map=tex;w.mesh.material.color.setScalar(.95);w.mesh.material.needsUpdate=true;
     w.mesh.scale.set(W,h,1);w.mesh.position.y=.22+h/2;
     w.frame.scale.set(W+.24,h+.24,1);w.frame.position.y=w.mesh.position.y;
@@ -838,10 +867,10 @@ function distFor(halfH,halfW){
 function cameraGoal(){
   if(view.floor===null){
     const H=TOTAL*FH;
-    const target=new THREE.Vector3(1.2,H*.62,0);
+    const target=new THREE.Vector3(0,H*.62,0);
     return {target,pos:SPH(target,distFor(H*.82,FW*1.5),1.26,.6)};
   }
-  const y0=(view.floor-1)*FH,target=new THREE.Vector3(1.4,y0+.7,.5);
+  const y0=(view.floor-1)*FH,target=new THREE.Vector3(.3,y0+.7,.5);
   return {target,pos:SPH(target,distFor(FD*.68,FW*.66),.86,.42)};
 }
 function flyTo(instant){
@@ -1011,7 +1040,7 @@ function frame(){
     for(const l of floorLabels){
       const f=l.floor,a=FW/2*f.sc,b=FD/2*f.sc,rc=2.4*f.sc;
       const h=(a-rc)*Math.abs(rx)+(b-rc)*Math.abs(rz)+rc; // khoảng cách từ tâm tới mép tòa nhà theo hướng đó
-      const m=.5+2.6*Math.pow(Math.max(0,rx),2);          // chừa chỗ cho lõi thang máy khi hông phải quay về +x
+      const m=.6;
       l.pos.set(rx*(h+m),(f.n-1)*FH+1.5,rz*(h+m));
     }
   }
@@ -1170,7 +1199,7 @@ function apply(json){
     if(!firstLoad&&t.from_agent_id){
       const up=byId.get(t.from_agent_id),down=byId.get(t.agent_id);
       if(prev===undefined&&(Date.now()-new Date(t.created_at).getTime())<180000)enqueue('giao',up,down);
-      else if(prev&&prev!=='done'&&t.status==='done')enqueue('tra',down,up);
+      else if(prev&&prev!=='done'&&t.status==='done')enqueue('tra',up,down);
     }
     taskSeen.set(t.id,t.status);
   }
