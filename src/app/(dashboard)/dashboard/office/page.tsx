@@ -1,5 +1,6 @@
-// Văn phòng AI: văn phòng isometric chạy bằng dữ liệu thật (agent, trạng thái,
-// việc, phê duyệt) lấy từ /api/office/state. Trang tĩnh public/tnt-office-live.html
+// Văn phòng AI: văn phòng 3D (Three.js, public/tnt-office-3d.html) chạy bằng dữ liệu
+// thật (agent, trạng thái, việc, phê duyệt) lấy từ /api/office/state. Máy không có
+// WebGL tự chuyển sang bản 2D public/tnt-office-live.html. Cả hai trang tĩnh
 // vẫn đi qua proxy.ts nên cần đăng nhập như các trang dashboard khác. Bản mô
 // phỏng cũ (lịch tác vụ Claude, chụp ngày 30/10) còn ở public/tnt-office.html.
 export default function OfficePage() {
@@ -14,6 +15,14 @@ export default function OfficePage() {
         </div>
         <div className="flex gap-2">
           <a
+            href="/tnt-office-live.html"
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-400 transition hover:border-cyan-700 hover:text-cyan-300"
+          >
+            Bản 2D
+          </a>
+          <a
             href="/tnt-office.html"
             target="_blank"
             rel="noreferrer"
@@ -22,7 +31,7 @@ export default function OfficePage() {
             Bản mô phỏng cũ
           </a>
           <a
-            href="/tnt-office-live.html"
+            href="/tnt-office-3d.html"
             target="_blank"
             rel="noreferrer"
             className="rounded-md border border-slate-700 px-3 py-1.5 text-sm text-slate-300 transition hover:border-cyan-700 hover:text-cyan-300"
@@ -32,7 +41,7 @@ export default function OfficePage() {
         </div>
       </div>
       <iframe
-        src="/tnt-office-live.html"
+        src="/tnt-office-3d.html"
         title="TNT AI Office"
         className="h-[calc(100vh-11rem)] min-h-[640px] w-full rounded-lg border border-slate-800"
       />
