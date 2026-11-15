@@ -9,7 +9,7 @@
 <style>
 /* Tòa nhà AI 10 tầng (Three.js, nạp từ /vendor/three): mỗi tầng là một phòng ban, chọn tầng để xem bên trong. Dữ liệu thật từ /api/office/state. Giao diện HUD neon kiểu màn hình cảm ứng; ô thông tin bấm để phóng to. */
 :root{
-  --bg:#07041a; --ink:#e9e6ff; --muted:#9b94c9; --cy:#29e6ff; --pu:#8b5cff; --or:#ffb347;
+  --bg:#07041a; --ink:#e9e6ff; --muted:#b9b4e6; --cy:#29e6ff; --pu:#8b5cff; --or:#ffb347;
   --ok:#2de2c0; --warn:#ffb347; --bad:#ff5a6e;
   --f-display:"Unbounded","Be Vietnam Pro",system-ui,sans-serif;
   --f-body:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -32,35 +32,42 @@ h1 span{color:var(--or)}
 
 .stage{position:relative;flex:1;min-height:560px;border-radius:10px;overflow:hidden;border:1px solid rgba(41,230,255,.45);box-shadow:0 0 0 1px rgba(139,92,255,.25),0 0 40px rgba(110,60,255,.25),inset 0 0 60px rgba(60,20,160,.35);
   background:radial-gradient(120% 90% at 50% 38%,#2a1166 0%,#150a3a 42%,#07041a 80%)}
-.stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 3px);mix-blend-mode:screen}
+.stage::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:repeating-linear-gradient(0deg,rgba(255,255,255,.025) 0,rgba(255,255,255,.025) 1px,transparent 1px,transparent 3px);mix-blend-mode:screen;opacity:.5}
 #gl{position:absolute;inset:0;touch-action:none}
 #gl canvas{display:block;width:100%;height:100%}
 #labels{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
 .lbl{position:absolute;left:0;top:0;will-change:transform;white-space:nowrap}
-.fpill{pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:7px;font:700 10px/1 var(--f-mono);letter-spacing:.08em;padding:6px 10px;border-radius:4px;background:rgba(14,8,48,.82);color:#cfd6ff;border:1px solid var(--c,#29e6ff);box-shadow:0 0 12px color-mix(in srgb,var(--c,#29e6ff) 45%,transparent)}
+.fpill{pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:7px;font:700 11.5px/1 var(--f-mono);letter-spacing:.06em;padding:7px 11px;border-radius:4px;background:rgba(6,4,30,.95);color:#fff;text-shadow:0 1px 2px #000;border:1px solid var(--c,#29e6ff);box-shadow:0 0 12px color-mix(in srgb,var(--c,#29e6ff) 45%,transparent)}
 .fpill b{color:var(--c,#29e6ff)}
 .fpill .dots{display:flex;gap:4px;font-weight:700}
 .fpill.sel{background:var(--c,#29e6ff);color:#10082a}.fpill.sel b{color:#10082a}
 .fpill::before{content:"";position:absolute;left:-16px;top:50%;width:16px;height:1px;background:var(--c,#29e6ff);box-shadow:0 0 6px var(--c,#29e6ff)}
-.fpill.empty{opacity:.45}
-.fpill.dim{opacity:.3}
+.fpill.empty{opacity:.6}
+.fpill.dim{opacity:.38}
 .atag{pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
-.atag .nm{font:600 10.5px/1 var(--f-body);color:#fff;background:rgba(14,8,48,.85);padding:3px 7px;border-radius:999px;border:1.5px solid var(--c,#29e6ff)}
+.atag .nm{font:700 12px/1 var(--f-body);color:#fff;text-shadow:0 1px 2px #000;background:rgba(6,4,30,.94);padding:4px 9px;border-radius:999px;border:1.5px solid var(--c,#29e6ff)}
 .atag.sel .nm{background:var(--c,#29e6ff);color:#10082a}
 .atag .sd{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;background:var(--sc,#7aa7ff);vertical-align:1px}
-.atag .bb{font:500 10.5px/1 var(--f-body);padding:3px 7px;border-radius:6px;background:#fff;color:#141a2e}
+.atag .bb{font:700 11px/1 var(--f-body);padding:4px 8px;box-shadow:0 2px 8px rgba(0,0,0,.5);border-radius:6px;background:#fff;color:#141a2e}
 .atag .bb.work{background:#d6fff3}.atag .bb.wait,.atag .bb.stuck{background:#fff0d2}.atag .bb.bad{background:#ffdde2}.atag .bb.off{background:#e8ecf3;color:#5b6682}
 .atag .bb:empty{display:none}
 
 /* ---- HUD neon ---- */
-.panel{position:relative;background:linear-gradient(160deg,rgba(30,14,78,.80),rgba(10,8,40,.82));border:1px solid rgba(41,230,255,.38);border-radius:6px;backdrop-filter:blur(8px);box-shadow:0 0 22px rgba(120,70,255,.28),inset 0 0 18px rgba(41,230,255,.06)}
+.panel{position:relative;background:linear-gradient(160deg,rgba(28,14,74,.93),rgba(8,6,36,.95));border:1px solid rgba(41,230,255,.38);border-radius:6px;backdrop-filter:blur(8px);box-shadow:0 0 22px rgba(120,70,255,.28),inset 0 0 18px rgba(41,230,255,.06)}
 .panel::before,.panel::after{content:"";position:absolute;width:14px;height:14px;border:2px solid var(--or);pointer-events:none}
 .panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
 .panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
-.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;font:700 11px var(--f-mono);letter-spacing:.14em;color:#7ff3ff;cursor:pointer;text-transform:uppercase;border-bottom:1px solid rgba(41,230,255,.18);min-height:40px;user-select:none}
+.ph{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 12px;font:700 12px var(--f-mono);letter-spacing:.14em;color:#7ff3ff;cursor:pointer;text-transform:uppercase;border-bottom:1px solid rgba(41,230,255,.18);min-height:40px;user-select:none}
 .ph .ex{color:var(--or);font-size:14px}
 .pb{padding:10px 12px;font-size:12.5px}
-.dock{position:absolute;z-index:3;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+.dock{position:absolute;z-index:3;display:flex;flex-direction:column;gap:10px;pointer-events:none;transition:transform .28s ease,opacity .22s ease}
+.stage.hide-l .dock-l{transform:translateX(-115%);opacity:0}
+.stage.hide-l .dock-l *{pointer-events:none!important}
+.stage.hide-r .dock-r{transform:translateX(115%);opacity:0}
+.stage.hide-r .dock-r *{pointer-events:none!important}
+.stage.hide-l .topbar,.stage.hide-l .hint{left:12px}
+.stage.hide-r .topbar{right:12px}
+.btn.tg[aria-pressed="true"]{background:var(--or);color:#10082a}
 .dock>*{pointer-events:auto}
 .dock-l{left:12px;top:12px;bottom:12px;width:224px}
 .dock-r{right:12px;top:12px;bottom:12px;width:344px;overflow:auto;scrollbar-width:thin}
@@ -76,12 +83,12 @@ h1 span{color:var(--or)}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .tile{border:1px solid rgba(41,230,255,.22);border-radius:4px;padding:8px 10px;background:rgba(10,8,40,.5)}
 .tile b{display:block;font:700 22px/1 var(--f-mono);color:#fff}
-.tile small{font:500 10.5px var(--f-body);color:var(--muted)}
+.tile small{font:500 11.5px var(--f-body);color:var(--muted)}
 .arow{display:grid;grid-template-columns:10px 1fr auto;gap:8px;padding:7px 4px;border-bottom:1px solid rgba(41,230,255,.12);cursor:pointer;min-height:44px;align-items:center}
 .arow:hover{background:rgba(41,230,255,.07)}
 .arow .dot{width:9px;height:9px;border-radius:50%}
 .arow .nm{font-weight:600}
-.arow .m{font-size:11px;color:var(--muted)}
+.arow .m{font-size:12px;color:var(--muted)}
 .st{display:inline-block;border-radius:4px;padding:1px 7px;font:700 10px var(--f-mono);letter-spacing:.04em}
 .st.work{background:rgba(45,226,192,.16);color:var(--ok)}
 .st.idle{background:rgba(155,148,201,.16);color:var(--muted)}
@@ -89,7 +96,7 @@ h1 span{color:var(--or)}
 .st.bad{background:rgba(255,90,110,.18);color:var(--bad)}
 .st.stuck{background:rgba(255,179,71,.08);color:#d9a45a;border:1px dashed rgba(255,179,71,.45)}
 .st.off{background:rgba(110,100,160,.2);color:#8b86b3}
-.logl{font:11.5px/1.55 var(--f-mono);color:var(--muted)}
+.logl{font:12px/1.6 var(--f-mono);color:var(--muted)}
 .logl div:first-child{color:var(--ink)}
 .bar{height:8px;border-radius:2px;background:rgba(41,230,255,.12);overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--pu),var(--cy))}
@@ -98,10 +105,10 @@ h1 span{color:var(--or)}
 
 .topbar{position:absolute;z-index:3;left:248px;right:368px;top:12px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;pointer-events:none}
 .topbar>*{pointer-events:auto}
-.crumb{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:4px;background:rgba(14,8,48,.78);border:1px solid rgba(41,230,255,.3);font:700 11px var(--f-mono);letter-spacing:.12em;color:#7ff3ff;text-transform:uppercase}
-.btn{min-height:40px;padding:0 14px;border-radius:4px;border:1px solid var(--or);background:rgba(255,179,71,.12);color:var(--or);font:700 11px var(--f-mono);letter-spacing:.1em;cursor:pointer}
+.crumb{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:4px;background:rgba(6,4,30,.92);border:1px solid rgba(41,230,255,.3);font:700 11px var(--f-mono);letter-spacing:.12em;color:#7ff3ff;text-transform:uppercase}
+.btn{min-height:40px;padding:0 14px;border-radius:4px;border:1px solid var(--or);background:rgba(20,12,44,.9);color:var(--or);font:700 11px var(--f-mono);letter-spacing:.1em;cursor:pointer}
 .btn:hover{background:rgba(255,179,71,.28)}
-.hint{position:absolute;z-index:3;left:248px;bottom:12px;font:500 11px var(--f-mono);color:#8e86c8;background:rgba(14,8,48,.6);padding:4px 10px;border-radius:999px;pointer-events:none}
+.hint{position:absolute;z-index:3;left:248px;bottom:12px;font:500 11.5px var(--f-mono);color:#c9c4f0;background:rgba(6,4,30,.8);padding:4px 10px;border-radius:999px;pointer-events:none}
 .toolbar{display:none}
 .brand{padding:12px 14px 14px;flex:none}
 .brand .logo{font:800 32px/1 var(--f-display);letter-spacing:.06em;color:#fff;text-shadow:0 0 18px rgba(120,160,255,.55)}
@@ -109,7 +116,7 @@ h1 span{color:var(--or)}
 .brand .slogan{margin-top:7px;font:600 9px var(--f-mono);letter-spacing:.2em;color:#9fb4ff}
 .brand .tag{margin-top:9px;font:500 12px/1.4 var(--f-body);color:#d6dcff}
 .kvwrap{display:grid;grid-template-columns:1fr 112px;gap:8px;align-items:center}
-.kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(41,230,255,.22);padding:3px 0;font:600 11.5px var(--f-mono)}
+.kv div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(41,230,255,.22);padding:3px 0;font:600 12px var(--f-mono)}
 .kv span{color:var(--muted)}.kv b{color:#fff}
 .bp{width:100%;height:auto;filter:drop-shadow(0 0 6px rgba(41,230,255,.35))}
 .bp rect{cursor:pointer}
@@ -127,7 +134,7 @@ h1 span{color:var(--or)}
 .tasks{margin:4px 0 0;padding-left:16px;color:var(--muted);font-size:12px}
 
 @media (max-width:900px){
-  .dock-r,.dock-l .fl-list,.dock-l .brand,.hint{display:none}
+  .dock-r,.dock-l .fl-list,.dock-l .brand,.hint,.btn.tg{display:none}
   .dock-l{width:auto;bottom:auto;right:12px;flex-direction:row;align-items:center}
   .dock-l .panel{flex:1}
   .topbar{left:12px;right:12px;top:auto;bottom:62px}
@@ -165,7 +172,7 @@ button:focus-visible,.fl:focus-visible,.arow:focus-visible,.ph:focus-visible{out
       </div>
     </div>
 
-    <div class="topbar"><div class="crumb" id="crumb">TOÀN TÒA NHÀ</div><button class="btn" id="back" type="button" hidden>⟲ TOÀN TÒA NHÀ</button><button class="btn" id="fx" type="button">✨ HIỆU ỨNG: BẬT</button><button class="btn" id="replay" type="button" title="Phát lại các việc giao gần đây theo dữ liệu thật">▶ GIAO VIỆC GẦN ĐÂY</button><button class="btn" id="demo" type="button" title="Hiệu ứng minh họa, không phải dữ liệu thật">MÔ PHỎNG</button></div>
+    <div class="topbar"><div class="crumb" id="crumb">TOÀN TÒA NHÀ</div><button class="btn" id="back" type="button" hidden>⟲ TOÀN TÒA NHÀ</button><button class="btn" id="fx" type="button">✨ HIỆU ỨNG: BẬT</button><button class="btn" id="replay" type="button" title="Phát lại các việc giao gần đây theo dữ liệu thật">▶ GIAO VIỆC GẦN ĐÂY</button><button class="btn" id="demo" type="button" title="Hiệu ứng minh họa, không phải dữ liệu thật">MÔ PHỎNG</button><button class="btn tg" id="tgL" type="button" aria-pressed="true" title="Ẩn/hiện bảng Tầng bên trái">◧ TẦNG</button><button class="btn tg" id="tgR" type="button" aria-pressed="true" title="Ẩn/hiện các bảng thông tin bên phải">THÔNG TIN ◨</button><button class="btn tg" id="tgAll" type="button" title="Ẩn/hiện tất cả bảng để nhìn toàn cảnh (phím H)">⛶ TOÀN CẢNH</button></div>
 
     <div class="dock dock-r" id="dockR">
       <div class="panel" data-p="overview"><div class="ph" tabindex="0" role="button"><span>Tổng quan</span><span class="ex">⤢</span></div><div class="pb" id="p-overview"></div></div>
@@ -201,7 +208,7 @@ const glHost=document.getElementById('gl');
 let renderer;
 try{ renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'}); }
 catch(e){ location.replace('/tnt-office-live.html'); throw e; }
-renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.0;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.92;
 renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
 renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFShadowMap;
 glHost.appendChild(renderer.domElement);
@@ -230,7 +237,7 @@ function ago(iso){
 }
 const shortName=n=>{const s=String(n||'');return s.length>16?s.slice(0,15)+'…':s};
 const hex6=n=>'#'+n.toString(16).padStart(6,'0');
-const GL=(c,k=1.6)=>new THREE.Color(c).multiplyScalar(k); // màu quá sáng để hiệu ứng bloom bắt được
+const GL=(c,k=1.3)=>new THREE.Color(c).multiplyScalar(k); // màu quá sáng để hiệu ứng bloom bắt được
 
 /* ---------- Trạng thái ---------- */
 function viewState(a){
@@ -485,10 +492,10 @@ function addHelicopter(parent,r,y,ph,sp){
   const holder=new THREE.Group();parent.add(holder);
   const body=makeHelicopter();holder.add(body);
   const len=y-.4;                                   // chùm sáng đi thẳng xuống tới mặt đất
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.4,3.8,len,40,1,true),new THREE.MeshBasicMaterial({map:beamTex,color:GL(0xcfeeff,1),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.4,3.8,len,40,1,true),new THREE.MeshBasicMaterial({map:beamTex,color:GL(0xcfeeff,1),transparent:true,opacity:.3,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide}));
   beam.userData.ownGeo=true;beam.position.y=-len/2-.8;holder.add(beam);
-  halo(holder,0xbfe8ff,9,0,-y+.5,0,.7);              // vệt sáng trên mặt đất
-  const spot=new THREE.SpotLight(0xdff4ff,3200,y*1.6,.14,.7,2);spot.position.set(0,-.8,0);holder.add(spot);
+  halo(holder,0xbfe8ff,9,0,-y+.5,0,.4);              // vệt sáng trên mặt đất
+  const spot=new THREE.SpotLight(0xdff4ff,1800,y*1.6,.14,.7,2);spot.position.set(0,-.8,0);holder.add(spot);
   const tg=new THREE.Object3D();tg.position.set(0,-y,0);holder.add(tg);spot.target=tg;
   helis.push({holder,body,r,y,ph,sp});
 }
@@ -580,7 +587,7 @@ function buildTower(){
     shell.add(new THREE.Mesh(roundedPrism(FW,FD,FH-.35,RC),f.glassMat));
     f.edgeMat=rNeon(shell,FW,FD,FH-.35,RC,0,col.getHex(),.75);
     // dải đèn đứng ở bốn góc bo (như các đường sáng dọc thân tòa nhà trong ảnh)
-    const cx=FW/2-RC+RC*.7071,cz=FD/2-RC+RC*.7071,sm=mat('spine'+f.n%2,0x29e6ff,{emissive:0x29e6ff,emissiveIntensity:1.2});
+    const cx=FW/2-RC+RC*.7071,cz=FD/2-RC+RC*.7071,sm=mat('spine'+f.n%2,0x29e6ff,{emissive:0x29e6ff,emissiveIntensity:.8});
     for(const sx of [-1,1])for(const sz of [-1,1])box(shell,.1,FH-.35,.1,sm,sx*cx,FH/2-.18,sz*cz,false);
     // vùng bấm chọn tầng
     f.sc=sc;buildCoreSegment(f,g);
@@ -604,7 +611,7 @@ function buildTower(){
     cg.position.y=(FH-.85)/2+.1;c.add(cg);
     neon(c,1.2,FH-.85,1.5,0,(FH-.85)/2+.1,0,0xffb347,1);
     box(c,1.2,.1,1.5,mat('cabFloor',0x2a2f66),0,.05,0,false);
-    halo(c,0x4fd8ff,2.2,0,1.5,0,.45);
+    halo(c,0x4fd8ff,2.2,0,1.5,0,.3);
     cabins.push({g:c,i,zc,atFloor:1,freeAt:0,keys:[{t:0,y:0}],docks:[]});
   });
   // --- mái cong + chóp + ăng-ten, bục đế rộng, dải ruy-băng uốn quanh tòa nhà ---
@@ -633,7 +640,7 @@ function buildTower(){
   const curve=new THREE.CatmullRomCurve3(rp);
   const ribbon=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.3,12,false),new THREE.MeshStandardMaterial({color:0xe6ecff,metalness:1,roughness:.16,envMapIntensity:1.5}));
   ribbon.userData.ownGeo=true;roof.add(ribbon);
-  const rn=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.09,8,false),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.4)}));
+  const rn=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.09,8,false),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,1.8)}));
   rn.userData.ownGeo=true;rn.position.y=.34;roof.add(rn);
   // hai trực thăng bay vòng trên đỉnh tòa nhà, chiếu đèn thẳng xuống
   addHelicopter(roof,9.5,roofY+8,0,.11);
@@ -894,7 +901,7 @@ function setupComposer(w,h){
   const rt=new THREE.WebGLRenderTarget(w,h,{type:THREE.HalfFloatType,samples:4});
   composer=new EffectComposer(renderer,rt);
   composer.addPass(new RenderPass(scene,camera));
-  bloomPass=new UnrealBloomPass(new THREE.Vector2(w,h),.55,.5,.85);
+  bloomPass=new UnrealBloomPass(new THREE.Vector2(w,h),.32,.4,.92);
   composer.addPass(bloomPass);composer.addPass(new OutputPass());
 }
 function resize(){
@@ -931,6 +938,22 @@ function selectAgent(a){
 $('back').addEventListener('click',()=>selectFloor(null));
 $('fx').addEventListener('click',()=>setFx(!fxOn,false));
 $('replay').addEventListener('click',replayReal);
+const stageEl=$('stage');
+const savedHud=(()=>{try{return JSON.parse(localStorage.getItem('towerHud')||'null')}catch(e){return null}})();
+const hud={l:savedHud?savedHud.l!==false:true,r:savedHud?savedHud.r!==false:true};
+if(!savedHud&&stageEl.clientWidth<1200)hud.r=false;      // màn hình hẹp: bảng phải mặc định đóng để không che nhãn tầng
+function applyHud(save){
+  stageEl.classList.toggle('hide-l',!hud.l);stageEl.classList.toggle('hide-r',!hud.r);
+  $('tgL').setAttribute('aria-pressed',hud.l);$('tgR').setAttribute('aria-pressed',hud.r);
+  $('tgAll').textContent=(hud.l||hud.r)?'⛶ TOÀN CẢNH':'☰ HIỆN BẢNG';
+  if(save){try{localStorage.setItem('towerHud',JSON.stringify(hud))}catch(e){}}
+}
+$('tgL').addEventListener('click',()=>{hud.l=!hud.l;applyHud(true)});
+$('tgR').addEventListener('click',()=>{hud.r=!hud.r;applyHud(true)});
+const toggleAll=()=>{const anyOn=hud.l||hud.r;hud.l=hud.r=!anyOn;applyHud(true)};
+$('tgAll').addEventListener('click',toggleAll);
+addEventListener('keydown',e=>{if((e.key==='h'||e.key==='H')&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!/INPUT|TEXTAREA/.test((e.target.tagName||'')))toggleAll()});
+applyHud(false);
 $('demo').addEventListener('click',runDemo);
 $('fx').textContent='✨ HIỆU ỨNG: '+(fxOn?'BẬT':'TẮT');
 $('up').addEventListener('click',()=>selectFloor(Math.min(TOTAL,(view.floor||0)+1)));
