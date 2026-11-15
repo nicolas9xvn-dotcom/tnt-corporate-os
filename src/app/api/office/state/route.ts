@@ -73,11 +73,41 @@ export async function GET() {
           .limit(40)
       : { data: [] };
 
+  // agents.status = 'running' can get stuck if a task dies mid-run before it
+  // resets the agent to idle. Only trust it when the agent really has a task
+  // in progress that started recently; otherwise flag it as possibly stuck
+  // (display only — this route never writes to the database).
+  const RUNNING_TRUST_MS = 30 * 60 * 1000;
+  const { data: activeTasks } =
+    agentIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("agent_id")
+          .in("agent_id", agentIds)
+          .eq("status", "in_progress")
+          .gte("created_at", new Date(Date.now() - RUNNING_TRUST_MS).toISOString())
+      : { data: [] };
+  const activeAgentIds = new Set((activeTasks ?? []).map((t) => t.agent_id));
+  const agentsWithFlag = (agents ?? []).map((a) => ({
+    ...a,
+    stuck_running: a.status === "running" && !activeAgentIds.has(a.id),
+  }));
+
+  // A delegated task points to the task that spawned it (parent_task_id);
+  // the agent who owns that parent task is the one who handed the work down.
+  const parentIds = [...new Set((tasks ?? []).map((t) => t.parent_task_id).filter((x): x is string => !!x))];
+  const { data: parentTasks } =
+    parentIds.length > 0
+      ? await supabase.from("tasks").select("id, agent_id").in("id", parentIds)
+      : { data: [] };
+  const parentAgent = new Map((parentTasks ?? []).map((p) => [p.id, p.agent_id as string]));
+
   const recentTasks = (tasks ?? []).map((t) => ({
     id: t.id,
     agent_id: t.agent_id,
     status: t.status,
     delegated: t.parent_task_id !== null,
+    from_agent_id: t.parent_task_id ? (parentAgent.get(t.parent_task_id) ?? null) : null,
     created_at: t.created_at,
     // Truncated on purpose: this feeds a screen that may be shared or
     // recorded, and task inputs can contain customer details.
@@ -100,7 +130,7 @@ export async function GET() {
       generated_at: new Date().toISOString(),
       business_unit: businessUnit,
       departments: departments ?? [],
-      agents: agents ?? [],
+      agents: agentsWithFlag,
       recent_tasks: recentTasks,
       pending_approvals: pendingApprovals ?? 0,
     },
