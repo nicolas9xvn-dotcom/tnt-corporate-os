@@ -364,23 +364,39 @@ function windowTexture(rep){
   const t=new THREE.CanvasTexture(c);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rep[0],rep[1]);t.colorSpace=THREE.SRGBColorSpace;return t;
 }
 const city=new THREE.Group();scene.add(city);
+const cityItems=[],cityDummy=new THREE.Object3D();
 (function buildCity(){
-  const classes=[{n:46,h:[10,22],rep:[2,2]},{n:36,h:[24,40],rep:[2,4]},{n:14,h:[46,80],rep:[2,7]}];
+  const classes=[{n:44,h:[12,26],rep:[2,3]},{n:34,h:[28,46],rep:[2,4]},{n:16,h:[44,66],rep:[2,6]}];
   let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
   for(const k of classes){
     const m=new THREE.MeshStandardMaterial({color:0x0c1240,metalness:.5,roughness:.35,emissive:0xffffff,emissiveMap:windowTexture(k.rep),emissiveIntensity:.75});
-    const im=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),m,k.n);const d=new THREE.Object3D();
+    const im=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),m,k.n);
     for(let i=0;i<k.n;i++){
-      let r=62+rnd()*100,a=rnd()*Math.PI*2;const w=4+rnd()*6,dd=4+rnd()*6,h=k.h[0]+rnd()*(k.h[1]-k.h[0]);
-      const da=Math.abs(((a-Math.atan2(.58,.81)+Math.PI*3)%(Math.PI*2))-Math.PI); // lệch so với hướng camera mặc định
-      if(Math.PI-da<.75&&r<150)r+=70;
-      d.position.set(Math.cos(a)*r,h/2-.9,Math.sin(a)*r);d.scale.set(w,h,dd);d.rotation.y=rnd()*Math.PI;d.updateMatrix();im.setMatrixAt(i,d.matrix);
+      const r=72+rnd()*110,a=rnd()*Math.PI*2;
+      cityItems.push({im,i,x:Math.cos(a)*r,z:Math.sin(a)*r,w:4+rnd()*6,dd:4+rnd()*6,h:k.h[0]+rnd()*(k.h[1]-k.h[0]),rot:rnd()*Math.PI,k:1});
     }
     city.add(im);
   }
+  for(const it of cityItems)setCityItem(it,1);
   const ground=new THREE.Mesh(new THREE.CircleGeometry(260,64),new THREE.MeshStandardMaterial({color:0x070a28,roughness:.9}));ground.rotation.x=-Math.PI/2;ground.position.y=-.92;city.add(ground);
-  for(let i=0;i<7;i++){const a=i/7*Math.PI*2+.3,r=62+rnd()*40;const sp=new THREE.Mesh(new THREE.CylinderGeometry(.05,.35,34,8),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2)}));sp.position.set(Math.cos(a)*r,16,Math.sin(a)*r);city.add(sp)}
 })();
+function setCityItem(it,k){
+  cityDummy.position.set(it.x,it.h*k/2-.9,it.z);cityDummy.scale.set(it.w,Math.max(.01,it.h*k),it.dd);cityDummy.rotation.y=it.rot;cityDummy.updateMatrix();
+  it.im.setMatrixAt(it.i,cityDummy.matrix);it.k=k;
+}
+// Tòa nhà nằm giữa camera và tòa chính sẽ hạ thấp dần xuống đất (ở mọi góc xoay), nên không bao giờ che tầm nhìn
+function updateCity(){
+  const C=camera.position,T=controls.target,dx=T.x-C.x,dz=T.z-C.z,L2=dx*dx+dz*dz;if(L2<1)return;
+  const touched=new Set();
+  for(const it of cityItems){
+    const t=((it.x-C.x)*dx+(it.z-C.z)*dz)/L2;
+    const lat=Math.hypot(C.x+dx*t-it.x,C.z+dz*t-it.z);
+    const target=(t>.02&&t<1.05&&lat<16+Math.max(it.w,it.dd))?0:1;
+    if(Math.abs(it.k-target)>.01){setCityItem(it,it.k+(target-it.k)*.18);touched.add(it.im)}
+  }
+  touched.forEach(im=>{im.instanceMatrix.needsUpdate=true});
+}
+let cityTick=0;
 
 /* ---------- Dữ liệu → tầng ---------- */
 let agents=[],byId=new Map(),tasksByAgent=new Map(),data=null,selected=null;
@@ -441,6 +457,29 @@ function label(cls,html,color){
   const el=document.createElement('div');el.className='lbl '+cls;if(color)el.style.setProperty('--c',color);el.innerHTML=html;labelsEl.appendChild(el);return el;
 }
 
+/* ---------- Hình khối bo cong cho vỏ tòa nhà ---------- */
+function roundedShape(w,d,r){
+  const sh=new THREE.Shape(),x=w/2,y=d/2;
+  sh.moveTo(-x+r,-y);sh.lineTo(x-r,-y);sh.absarc(x-r,-y+r,r,-Math.PI/2,0,false);
+  sh.lineTo(x,y-r);sh.absarc(x-r,y-r,r,0,Math.PI/2,false);
+  sh.lineTo(-x+r,y);sh.absarc(-x+r,y-r,r,Math.PI/2,Math.PI,false);
+  sh.lineTo(-x,-y+r);sh.absarc(-x+r,-y+r,r,Math.PI,Math.PI*1.5,false);
+  return sh;
+}
+const prismCache=new Map(),prismEdgeCache=new Map();
+function roundedPrism(w,d,h,r){ // lăng trụ bo góc, đáy y=0, đỉnh y=h
+  const k=[w,d,h,r].join('|');let g=prismCache.get(k);
+  if(!g){g=new THREE.ExtrudeGeometry(roundedShape(w,d,r),{depth:h,bevelEnabled:false,curveSegments:10});g.rotateX(-Math.PI/2);prismCache.set(k,g)}
+  return g;
+}
+function rNeon(parent,w,d,h,r,y,color,opacity){
+  const k=[w,d,h,r].join('|');let g=prismEdgeCache.get(k);
+  if(!g){g=new THREE.EdgesGeometry(roundedPrism(w,d,h,r),30);prismEdgeCache.set(k,g)}
+  const m=new THREE.LineBasicMaterial({color:GL(color),transparent:true,opacity});
+  const l=new THREE.LineSegments(g,m);l.position.y=y;parent.add(l);return m;
+}
+const taperScale=n=>n<=4?1:1-.26*Math.pow((n-4)/Math.max(1,TOTAL-4),1.15);
+
 function buildTower(){
   disposeTower();
   floors=planFloors();
@@ -478,17 +517,20 @@ function buildTower(){
   for(const f of floors){
     const g=new THREE.Group();g.position.y=(f.n-1)*FH;tower.add(g);f.group=g;
     const col=new THREE.Color(f.color);
-    // vỏ tòa nhà thon dần lên cao: sàn, kính, cột góc, khung neon
-    const sc=1-.12*(f.n-1)/Math.max(1,TOTAL-1);
+    // vỏ tòa nhà bo cong, thon dần theo đường cong: bục đế rộng, thân thu nhỏ lên đỉnh
+    const sc=taperScale(f.n),RC=2.4;
     const shell=new THREE.Group();shell.scale.set(sc,1,sc);g.add(shell);f.shell=shell;
-    box(shell,FW+.6,.3,FD+.6,mat('slab',0x1c1450,{metalness:.7,roughness:.25}),0,-.15,0);
-    f.slabEdge=neon(shell,FW+.6,.3,FD+.6,0,-.15,0,f.n%2?0x29e6ff:0x8b5cff);
-    box(shell,FW-.2,.06,FD-.2,mat('inner',0x141a48,{emissive:0x0b1030,emissiveIntensity:.8}),0,.03,0,false);
-    const grid=new THREE.GridHelper(FW-.2,13,0x29e6ff,0x2a3a8c);grid.scale.z=(FD-.2)/(FW-.2);grid.position.y=.07;grid.material.transparent=true;grid.material.opacity=.28;shell.add(grid);
+    const slab=new THREE.Mesh(roundedPrism(FW+.6,FD+.6,.3,RC+.3),mat('slab',0x1c1450,{metalness:.7,roughness:.25}));
+    slab.position.y=-.3;slab.castShadow=true;slab.receiveShadow=true;shell.add(slab);
+    f.slabEdge=rNeon(shell,FW+.6,FD+.6,.3,RC+.3,-.3,f.n%2?0x29e6ff:0x8b5cff,.95);
+    shell.add(Object.assign(new THREE.Mesh(roundedPrism(FW-.2,FD-.2,.06,RC),mat('inner',0x141a48,{emissive:0x0b1030,emissiveIntensity:.8})),{}));
+    const grid=new THREE.GridHelper(FW-1.6,12,0x29e6ff,0x2a3a8c);grid.scale.z=(FD-1.6)/(FW-1.6);grid.position.y=.07;grid.material.transparent=true;grid.material.opacity=.28;shell.add(grid);
     f.glassMat=new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.09,roughness:.05,metalness:.6,envMapIntensity:1.3,depthWrite:false,side:THREE.DoubleSide});
-    const glass=new THREE.Mesh(boxGeo(FW,FH-.35,FD),f.glassMat);glass.position.y=FH/2-.18;shell.add(glass);
-    f.edgeMat=neon(shell,FW,FH-.35,FD,0,FH/2-.18,0,col.getHex(),.75);
-    for(const sx of [-1,1])for(const sz of [-1,1])box(shell,.12,FH-.3,.12,mat('pillar'+f.n%2,f.n%2?0x29e6ff:0x8b5cff,{emissive:f.n%2?0x29e6ff:0x8b5cff,emissiveIntensity:.8}),sx*FW/2,FH/2-.15,sz*FD/2,false);
+    shell.add(new THREE.Mesh(roundedPrism(FW,FD,FH-.35,RC),f.glassMat));
+    f.edgeMat=rNeon(shell,FW,FD,FH-.35,RC,0,col.getHex(),.75);
+    // dải đèn đứng ở bốn góc bo (như các đường sáng dọc thân tòa nhà trong ảnh)
+    const cx=FW/2-RC+RC*.7071,cz=FD/2-RC+RC*.7071,sm=mat('spine'+f.n%2,0x29e6ff,{emissive:0x29e6ff,emissiveIntensity:1.2});
+    for(const sx of [-1,1])for(const sz of [-1,1])box(shell,.1,FH-.35,.1,sm,sx*cx,FH/2-.18,sz*cz,false);
     // vùng bấm chọn tầng
     f.sc=sc;buildCoreSegment(f,g,sc);
     const hit=new THREE.Mesh(boxGeo(FW*sc,FH,FD*sc),hitMat);hit.position.y=FH/2;hit.userData.floor=f.n;g.add(hit);floorHits.push(hit);f.hit=hit;
@@ -514,20 +556,34 @@ function buildTower(){
     halo(c,0x4fd8ff,2.2,0,1.5,0,.45);
     cabins.push({g:c,i,zc,atFloor:1,freeAt:0,keys:[{t:0,y:0}],docks:[]});
   });
-  // --- mái + ăng-ten ---
+  // --- mái cong + chóp + ăng-ten, bục đế rộng, dải ruy-băng uốn quanh tòa nhà ---
   const roof=new THREE.Group();tower.add(roof);
-  const roofY=TOTAL*FH;
-  box(roof,FW+.6,.3,FD+.6,mat('slab',0x1c1450),0,roofY-.15,0);neon(roof,FW+.6,.3,FD+.6,0,roofY-.15,0,0xffb347);
-  cyl(roof,.1,9,mat('ant',0x8f9bd6),0,roofY+4.5,0);
-  beacon=new THREE.Mesh(sphereGeo,new THREE.MeshBasicMaterial({color:0xff5a6e}));beacon.scale.setScalar(.22);beacon.position.set(0,roofY+9,0);roof.add(beacon);
-  beacon.userData.halo=halo(roof,0xff5a6e,3.2,0,roofY+9,0,.9);
-  // vòng khuyên bạc quanh tầng thấp, vòng neon gần đỉnh, chữ LED trên mặt tiền
-  const ringA=new THREE.Mesh(new THREE.TorusGeometry(10.6,.3,16,120),new THREE.MeshStandardMaterial({color:0xdfe6ff,metalness:1,roughness:.18,envMapIntensity:1.4}));
-  ringA.userData.ownGeo=true;ringA.rotation.x=Math.PI/2;ringA.rotation.z=.1;ringA.position.y=1.9*FH;roof.add(ringA);
-  const ringAg=new THREE.Mesh(new THREE.TorusGeometry(10.6,.06,8,120),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.2)}));
-  ringAg.userData.ownGeo=true;ringAg.rotation.copy(ringA.rotation);ringAg.position.copy(ringA.position);ringAg.position.y+=.28;roof.add(ringAg);
-  const ringB=new THREE.Mesh(new THREE.TorusGeometry(8.4,.07,8,120),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.4)}));
-  ringB.userData.ownGeo=true;ringB.rotation.x=Math.PI/2;ringB.rotation.z=-.12;ringB.position.y=(TOTAL-2.2)*FH;roof.add(ringB);
+  const roofY=TOTAL*FH,scTop=taperScale(TOTAL);
+  const rs=new THREE.Group();rs.scale.set(scTop,1,scTop);rs.position.y=roofY;roof.add(rs);
+  const rslab=new THREE.Mesh(roundedPrism(FW+.6,FD+.6,.3,2.7),mat('slab',0x1c1450,{metalness:.7,roughness:.25}));rslab.position.y=-.3;rs.add(rslab);
+  rNeon(rs,FW+.6,FD+.6,.3,2.7,-.3,0xffb347,1);
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(1,40,20,0,Math.PI*2,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.16,roughness:.05,metalness:.6,envMapIntensity:1.3,depthWrite:false,side:THREE.DoubleSide}));
+  dome.userData.ownGeo=true;dome.scale.set(FW/2*.92,2.6,FD/2*.92);rs.add(dome);
+  const spire=new THREE.Mesh(new THREE.CylinderGeometry(.04,.32,12,12),mat('ant',0x9fb0e8,{metalness:.9,roughness:.2,emissive:0x2a5aff,emissiveIntensity:.5}));
+  spire.userData.ownGeo=true;spire.position.y=roofY+2.6+6;roof.add(spire);
+  beacon=new THREE.Mesh(sphereGeo,new THREE.MeshBasicMaterial({color:0xff5a6e}));beacon.scale.setScalar(.22);beacon.position.set(0,roofY+14.8,0);roof.add(beacon);
+  beacon.userData.halo=halo(roof,0xff5a6e,3.2,0,roofY+14.8,0,.9);
+  // bục đế: trống kính hai tầng đầu + mái đua vòng quanh (phần đế rộng như trong ảnh concept)
+  const drumH=2*FH-.3;
+  const drum=new THREE.Mesh(new THREE.CylinderGeometry(12.8,12.8,drumH,72,1,true),new THREE.MeshStandardMaterial({color:0x8fdcff,transparent:true,opacity:.07,roughness:.05,metalness:.6,envMapIntensity:1.2,depthWrite:false,side:THREE.DoubleSide}));
+  drum.userData.ownGeo=true;drum.position.y=drumH/2;roof.add(drum);
+  const deck=new THREE.Mesh(new THREE.RingGeometry(9.2,14.4,96),mat('deck',0xdfe6ff,{metalness:.9,roughness:.22,envMapIntensity:1.4,side:THREE.DoubleSide}));
+  deck.userData.ownGeo=true;deck.rotation.x=-Math.PI/2;deck.position.y=2*FH+.12;roof.add(deck);
+  const deckRim=new THREE.Mesh(new THREE.TorusGeometry(14.4,.1,8,120),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.2)}));
+  deckRim.userData.ownGeo=true;deckRim.rotation.x=Math.PI/2;deckRim.position.y=2*FH+.12;roof.add(deckRim);
+  // dải ruy-băng bạc uốn quanh tòa nhà (lõi neon xanh), tránh lõi thang máy ở bên phải
+  const rp=[];
+  for(let i=0;i<=160;i++){const t=i/160,th=-.35*Math.PI+t*2.7*Math.PI,R=12.4-t*2.6,y=2*FH+.5+t*(TOTAL*FH*.58);rp.push(new THREE.Vector3(Math.cos(th)*R,y,Math.sin(th)*R))}
+  const curve=new THREE.CatmullRomCurve3(rp);
+  const ribbon=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.3,12,false),new THREE.MeshStandardMaterial({color:0xe6ecff,metalness:1,roughness:.16,envMapIntensity:1.5}));
+  ribbon.userData.ownGeo=true;roof.add(ribbon);
+  const rn=new THREE.Mesh(new THREE.TubeGeometry(curve,240,.09,8,false),new THREE.MeshBasicMaterial({color:GL(0x4fd8ff,2.4)}));
+  rn.userData.ownGeo=true;rn.position.y=.34;roof.add(rn);
   const ledTex=textTexture([{text:'TNT',font:'800 150px Unbounded, sans-serif',color:'#ffffff',y:120},{text:'AI',font:'800 150px Unbounded, sans-serif',color:'#6fe3ff',y:300}],512,420);
   const led=new THREE.Mesh(new THREE.PlaneGeometry(5.6,4.6),new THREE.MeshBasicMaterial({map:ledTex,transparent:true,toneMapped:false,depthWrite:false,color:GL(0xffffff,1.6)}));
   led.userData.ownGeo=true;led.position.set(0,(TOTAL-3.3)*FH,(FD/2)*.97+.1);roof.add(led);
@@ -540,9 +596,10 @@ function buildTower(){
 function buildDeptFloor(f,g){
   const n=f.agents.length,cols=Math.min(4,Math.max(1,Math.ceil(n/3))),rows=Math.ceil(n/cols);
   const sx=cols>=4?3.1:3.6,sz=2.6;
+  const half=FW/2*f.sc-1.6,span=(cols-1)*sx,kx=span>2*half?(2*half)/Math.max(.01,span):1;
   f.agents.forEach((a,k)=>{
     const c=k%cols,r=Math.floor(k/cols);
-    const x=(c-(cols-1)/2)*sx,z=-FD/2+2.0+r*sz-((rows>2)?0:-.4);
+    const x=(c-(cols-1)/2)*sx*kx,z=-FD/2+2.0+r*sz-((rows>2)?0:-.4);
     a.fx=x;a.fz=Math.min(z,FD/2-2.2);a.floor=f.n;a.color=f.color;
     const d=new THREE.Group();d.position.set(x,0,a.fz);g.add(d);
     box(d,1.7,.06,.85,mat('desk',0x3a4078,{metalness:.35,roughness:.45}),0,.76,0);
@@ -742,8 +799,8 @@ function distFor(halfH,halfW){
 function cameraGoal(){
   if(view.floor===null){
     const H=TOTAL*FH;
-    const target=new THREE.Vector3(1.2,H*.5,0);
-    return {target,pos:SPH(target,distFor(H*.78,FW*1.5),1.26,.6)};
+    const target=new THREE.Vector3(1.2,H*.62,0);
+    return {target,pos:SPH(target,distFor(H*.82,FW*1.5),1.26,.6)};
   }
   const y0=(view.floor-1)*FH,target=new THREE.Vector3(1.4,y0+.7,.5);
   return {target,pos:SPH(target,distFor(FD*.6,FW*.58),.86,.42)};
@@ -864,6 +921,7 @@ function frame(){
   if(!tower)return;
   const t=(performance.now()-t0)/1000;
   const dt=Math.min(.1,t-prevT);prevT=t;
+  if((cityTick++%4)===0)updateCity();
   pump(t);updateCabins(t,dt);updateJobs(t);
   if(goal){
     camera.position.lerp(goal.pos,.075);controls.target.lerp(goal.target,.075);
