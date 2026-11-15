@@ -1,0 +1,109 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+
+// Live state for the "Văn phòng AI" page (public/tnt-office-live.html):
+// agents with their current status, recent tasks, and how many tasks are
+// waiting for approval. Read-only and authenticated — uses the viewer's own
+// session, so RLS decides what they can see (unlike /api/public/*, which is
+// deliberately open). The /api prefix is excluded from proxy.ts, so this
+// route checks the session itself.
+export const dynamic = "force-dynamic";
+
+const INPUT_SNIPPET = 90;
+
+export async function GET() {
+  if (!isSupabaseConfigured) {
+    return NextResponse.json({ error: "Supabase chưa được cấu hình." }, { status: 503 });
+  }
+
+  const supabase = await createClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase chưa được cấu hình." }, { status: 503 });
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Bạn cần đăng nhập." }, { status: 401 });
+  }
+
+  const { data: viewer } = await supabase
+    .from("users")
+    .select("role, business_unit_id")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!viewer) {
+    return NextResponse.json({ error: "Không tìm thấy hồ sơ người dùng." }, { status: 403 });
+  }
+
+  const { data: businessUnits } = await supabase.from("business_units").select("id, name").order("name");
+  const businessUnit =
+    businessUnits?.find((b) => b.id === viewer.business_unit_id) ?? businessUnits?.[0] ?? null;
+  if (!businessUnit) {
+    return NextResponse.json({ error: "Chưa có công ty con nào trong database." }, { status: 404 });
+  }
+
+  const { data: departments } = await supabase
+    .from("departments")
+    .select("id, name, code")
+    .eq("business_unit_id", businessUnit.id)
+    .order("name");
+
+  const { data: agents, error: agentsError } = await supabase
+    .from("agents")
+    .select("id, name, role, level, status, approval_level, department_id, reports_to, last_task_completed_at")
+    .eq("business_unit_id", businessUnit.id)
+    .order("name");
+  if (agentsError) {
+    return NextResponse.json({ error: agentsError.message }, { status: 500 });
+  }
+
+  // tasks has no business_unit_id column — scope by this unit's agent ids
+  // explicitly (a chairman's RLS grant spans every business unit).
+  const agentIds = (agents ?? []).map((a) => a.id);
+  const { data: tasks } =
+    agentIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("id, agent_id, status, input, parent_task_id, created_at")
+          .in("agent_id", agentIds)
+          .order("created_at", { ascending: false })
+          .limit(40)
+      : { data: [] };
+
+  const recentTasks = (tasks ?? []).map((t) => ({
+    id: t.id,
+    agent_id: t.agent_id,
+    status: t.status,
+    delegated: t.parent_task_id !== null,
+    created_at: t.created_at,
+    // Truncated on purpose: this feeds a screen that may be shared or
+    // recorded, and task inputs can contain customer details.
+    input: t.input ? String(t.input).slice(0, INPUT_SNIPPET) : null,
+  }));
+
+  // Counted with its own query, not from recentTasks — an old task still
+  // waiting for approval would fall outside the 40 most recent rows.
+  const { count: pendingApprovals } =
+    agentIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("id", { count: "exact", head: true })
+          .in("agent_id", agentIds)
+          .eq("status", "approval_required")
+      : { count: 0 };
+
+  return NextResponse.json(
+    {
+      generated_at: new Date().toISOString(),
+      business_unit: businessUnit,
+      departments: departments ?? [],
+      agents: agents ?? [],
+      recent_tasks: recentTasks,
+      pending_approvals: pendingApprovals ?? 0,
+    },
+    { headers: { "Cache-Control": "no-store" } }
+  );
+}
