@@ -112,6 +112,8 @@ h1 span{color:var(--or)}
 .kv span{color:var(--muted)}.kv b{color:#fff}
 .bp{width:100%;height:auto;filter:drop-shadow(0 0 6px rgba(41,230,255,.35))}
 .bp rect{cursor:pointer}
+.fimg{width:100%;height:auto;display:block;border-radius:4px;border:1px solid rgba(41,230,255,.4);box-shadow:0 0 14px rgba(41,230,255,.25)}
+.ov .fimg{max-height:46vh;object-fit:contain;background:#05031a}
 
 /* ---- phóng to ô thông tin ---- */
 .ov{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;background:rgba(4,2,18,.66);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .22s}
@@ -165,6 +167,7 @@ button:focus-visible,.fl:focus-visible,.arow:focus-visible,.ph:focus-visible{out
 
     <div class="dock dock-r" id="dockR">
       <div class="panel" data-p="overview"><div class="ph" tabindex="0" role="button"><span>Tổng quan</span><span class="ex">⤢</span></div><div class="pb" id="p-overview"></div></div>
+      <div class="panel" data-p="info" id="pn-info" hidden><div class="ph" tabindex="0" role="button"><span id="p-info-t">Thông tin tầng</span><span class="ex">⤢</span></div><div class="pb" id="p-info"></div></div>
       <div class="panel" data-p="floor"><div class="ph" tabindex="0" role="button"><span id="p-floor-t">Nhân sự</span><span class="ex">⤢</span></div><div class="pb" id="p-floor"></div></div>
       <div class="panel" data-p="approvals"><div class="ph" tabindex="0" role="button"><span>Chờ duyệt</span><span class="ex">⤢</span></div><div class="pb" id="p-approvals"></div></div>
       <div class="panel" data-p="log"><div class="ph" tabindex="0" role="button"><span>Nhật ký</span><span class="ex">⤢</span></div><div class="pb" id="p-log"></div></div>
@@ -172,6 +175,7 @@ button:focus-visible,.fl:focus-visible,.arow:focus-visible,.ph:focus-visible{out
 
     <div class="toolbar" id="toolbar">
       <button class="btn" data-open="overview" type="button">TỔNG QUAN</button>
+      <button class="btn" data-open="info" id="tb-info" type="button" hidden>ẢNH TẦNG</button>
       <button class="btn" data-open="floor" type="button">NHÂN SỰ</button>
       <button class="btn" data-open="approvals" type="button">CHỜ DUYỆT</button>
       <button class="btn" data-open="log" type="button">NHẬT KÝ</button>
@@ -389,23 +393,44 @@ function floorStats(f){
   const c={work:0,wait:0,bad:0,stuck:0};
   f.agents.forEach(a=>{const s=viewState(a);if(c[s]!==undefined)c[s]++});return c;
 }
+// Kế hoạch 10 tầng do chủ doanh nghiệp quyết định (tên, mô tả, ảnh nội thất). Phòng ban được gán vào tầng theo từ khóa trong tên.
+const FLOOR_PLAN={
+  10:{name:'CEO & BOARD OF DIRECTORS',color:'#ffb347',keys:['ceo','board','executive','hoi dong'],desc:'Văn phòng CEO, phòng họp hội đồng quản trị, phòng tiếp khách VIP. Vật liệu đá tự nhiên, kính toàn cảnh, nội thất tối giản cao cấp.'},
+  9:{name:'ADMIN & LEGAL',color:'#b59cff',keys:['admin','legal','hanh chinh','phap ly'],desc:'Văn phòng hành chính, pháp lý, phòng họp riêng tư, hệ thống lưu trữ tài liệu số.'},
+  8:{name:'BRAND & DESIGN',color:'#ff7ad9',keys:['brand','design','thuong hieu','thiet ke'],desc:'Studio sáng tạo, phòng thiết kế 3D, phòng thương hiệu, khu vực sản xuất hình ảnh và trải nghiệm sản phẩm.'},
+  7:{name:'FINANCE',color:'#4fe0b0',keys:['finance','tai chinh','ke toan','accounting'],desc:'Trung tâm tài chính, kế toán, quản trị dòng tiền và phòng phân tích dữ liệu.'},
+  6:{name:'MANAGEMENT',color:'#7aa7ff',keys:['management','quan ly'],desc:'Khu điều hành quản lý, phòng họp chiến lược, bảng KPI và quản trị hiệu suất.'},
+  5:{name:'MARKETING',color:'#ff9f6b',keys:['marketing','truyen thong'],desc:'Phòng marketing, studio livestream, sản xuất video, phòng chiến dịch và truyền thông.'},
+  4:{name:'OPERATIONS',color:'#29e6ff',keys:['operation','van hanh'],desc:'Điều phối vận hành, quản lý quy trình, kiểm soát chất lượng và hỗ trợ khách hàng.'},
+  3:{name:'AI AUTOMATION CENTER',color:'#c3e66b',keys:['automation','tu dong'],desc:'Trung tâm điều phối AI Agent, theo dõi nhiệm vụ, tự động hóa quy trình doanh nghiệp.'},
+  2:{name:'AI RESEARCH & DEVELOPMENT',color:'#6be3ff',keys:['research','r&d','nghien cuu','development'],desc:'Phòng nghiên cứu AI, phòng thử nghiệm robot, phát triển phần mềm và hệ thống thông minh.'},
+  1:{name:'COMMAND CENTER & RECEPTION',color:'#ffc65c',keys:['command','reception','le tan','tiep don'],desc:'Đại sảnh, lễ tân thông minh, màn hình điều hành tổng thể và trung tâm tiếp đón đối tác.'}
+};
+const norm=x=>String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
 function planFloors(){
-  const groups=[];
+  const taken={},unmatched=[];
   const exec=agents.filter(a=>!a.department_id);
-  if(exec.length)groups.push({name:'BAN ĐIỀU HÀNH',color:EXEC_COLOR,agents:exec});
-  (data.departments||[]).forEach((d,i)=>{
-    const list=agents.filter(a=>a.department_id===d.id);
-    if(list.length)groups.push({name:String(d.name).toUpperCase(),color:PAL[i%PAL.length],agents:list});
+  if(exec.length)taken[10]={agents:exec,matched:true};
+  (data.departments||[]).forEach(d=>{
+    const list=agents.filter(a=>a.department_id===d.id);if(!list.length)return;
+    const nn=norm(d.name);let n=null;
+    for(let k=10;k>=1;k--){if(taken[k])continue;if(FLOOR_PLAN[k].keys.some(w=>nn.includes(w))){n=k;break}}
+    if(n)taken[n]={agents:list,matched:true};else unmatched.push({d,list});
   });
-  TOTAL=Math.max(10,groups.length+2);
+  // phòng ban chưa khớp kế hoạch → tầng còn trống từ 9 xuống 1, giữ tên riêng, không gắn ảnh/mô tả của tầng khác
+  for(const u of unmatched){let n=null;for(let k=9;k>=1;k--){if(!taken[k]){n=k;break}}
+    if(n)taken[n]={agents:u.list,matched:false,name:String(u.d.name).toUpperCase()};else console.warn('Không còn tầng cho phòng ban',u.d.name)}
+  TOTAL=10;
   const fl=[];
-  for(let n=1;n<=TOTAL;n++)fl.push({n,type:'empty',name:'TRỐNG',color:'#6b6499',agents:[]});
-  fl[0]={n:1,type:'lobby',name:'SẢNH & LỄ TÂN',color:'#29e6ff',agents:[]};
-  groups.forEach((g,i)=>{const n=TOTAL-i;fl[n-1]={n,type:'dept',name:g.name,color:g.color,agents:g.agents}});
+  for(let n=1;n<=10;n++){
+    const p=FLOOR_PLAN[n],t=taken[n],own=t&&!t.matched;
+    fl.push({n,name:own?t.name:p.name,desc:own?'':p.desc,img:own?null:('/tower/floors/f'+n+'.jpg'),color:p.color,agents:t?t.agents:[],type:t?'dept':(n===1?'lobby':'plan')});
+  }
   return fl;
 }
 
 function disposeTower(){
+  clearTimeout(preloadTimer);
   if(!tower)return;scene.remove(tower);
   tower.traverse(o=>{if(o.userData.ownGeo&&o.geometry)o.geometry.dispose()});
   floorLabels.forEach(l=>l.el.remove());agentLabels.forEach(l=>l.el.remove());
@@ -466,13 +491,10 @@ function buildTower(){
     // vùng bấm chọn tầng
     const hit=new THREE.Mesh(boxGeo(FW*sc,FH,FD*sc),hitMat);hit.position.y=FH/2;hit.userData.floor=f.n;g.add(hit);floorHits.push(hit);f.hit=hit;
 
-    // --- nội thất theo loại tầng ---
+    // --- nội thất theo loại tầng + ảnh nội thất treo ở tường sau ---
     if(f.type==='dept')buildDeptFloor(f,g);
-    else if(f.type==='empty'){
-      const tx=textTexture([{text:'TẦNG TRỐNG',font:'700 64px "JetBrains Mono", monospace',color:'#8f86d8',y:96},{text:'CHƯA CÓ NHÂN SỰ',font:'500 34px "Be Vietnam Pro", sans-serif',color:'#6d65a8',y:170}]);
-      const p=new THREE.Mesh(new THREE.PlaneGeometry(6,1.5),new THREE.MeshBasicMaterial({map:tx,transparent:true,opacity:.85,depthWrite:false}));
-      p.userData.ownGeo=true;p.position.set(0,1.5,-FD/2+.4);g.add(p);
-    }else buildLobby(f,g);
+    else if(f.type==='lobby')buildLobby(f,g);
+    if(f.img)makeWallImage(f,g,sc);
 
     // nhãn tầng bên phải tòa nhà
     const el=label('fpill','',f.color);
@@ -536,9 +558,37 @@ function buildDeptFloor(f,g){
   makePlant(g,FW/2-.7,FD/2-.7);makePlant(g,-FW/2+.7,FD/2-.7,.85);
   if(f.n%2===0)makeServerRack(g,-FW/2+.8,-FD/2+.8);
 }
+const TEXLOADER=new THREE.TextureLoader();
+function makeWallImage(f,g,sc){
+  const z=-FD/2*sc+.14;
+  const frame=new THREE.Mesh(boxGeo(1,1,.05),mat('imgFrame',0x0d1238,{metalness:.6,roughness:.3}));
+  frame.scale.set(6.7,2.1,1);frame.position.set(0,1.6,z-.03);g.add(frame);
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x232a6a,toneMapped:false}));
+  m.userData.ownGeo=true;m.scale.set(6.4,1.9,1);m.position.set(0,1.6,z);g.add(m);
+  f.wallImg={mesh:m,frame,loaded:false,loading:false,failed:false};
+}
+function loadFloorImage(f){
+  const w=f.wallImg;if(!w||w.loaded||w.loading||w.failed||!f.img)return;
+  w.loading=true;
+  TEXLOADER.load(f.img,tex=>{
+    tex.colorSpace=THREE.SRGBColorSpace;tex.anisotropy=4;
+    const asp=tex.image.width/tex.image.height,h=Math.min(2.6,6.4/asp);
+    w.mesh.material.map=tex;w.mesh.material.color.setScalar(.95);w.mesh.material.needsUpdate=true;
+    w.mesh.scale.set(6.4,h,1);w.mesh.position.y=.45+h/2;
+    w.frame.scale.set(6.64,h+.24,1);w.frame.position.y=w.mesh.position.y;
+    w.loaded=true;w.loading=false;
+  },undefined,()=>{w.loading=false;w.failed=true});
+}
+let preloadTimer=null;
+function preloadImages(first){
+  clearTimeout(preloadTimer);
+  const ref=first||5;
+  const todo=floors.filter(f=>f.img&&f.wallImg&&!f.wallImg.loaded&&!f.wallImg.failed).sort((a,b)=>Math.abs(a.n-ref)-Math.abs(b.n-ref));
+  if(!todo.length)return;
+  loadFloorImage(todo[0]);
+  preloadTimer=setTimeout(()=>preloadImages(view.floor),350);
+}
 function buildLobby(f,g){
-  const tx=textTexture([{text:'TNT CORPORATION',font:'700 76px Unbounded, sans-serif',color:'#ffc65c',y:100},{text:'AI TOWER',font:'500 40px "Be Vietnam Pro", sans-serif',color:'#9fe9ff',y:192}],1024,256,'#140c40');
-  const sign=new THREE.Mesh(new THREE.PlaneGeometry(6,1.5),new THREE.MeshBasicMaterial({map:tx}));sign.userData.ownGeo=true;sign.position.set(0,1.7,-FD/2+.3);g.add(sign);
   box(g,3.2,.9,.9,mat('desk',0x3a4078),0,.45,-FD/2+1.6);neon(g,3.2,.9,.9,0,.45,-FD/2+1.6,0x29e6ff,.8);
   makePlant(g,-FW/2+.8,FD/2-.8);makePlant(g,FW/2-.8,FD/2-.8);makePlant(g,FW/2-.8,-FD/2+.8,.9);
   const pcol=[0x5a6aa8,0xa05a88,0x3a9d82];
@@ -606,6 +656,7 @@ function selectFloor(n,instant){
   });
   (tower?.userData.roof||[]).forEach(o=>o.visible=(n===null||n===TOTAL));
   flyTo(!!instant);
+  if(tower)preloadImages(n);
   $('back').hidden=n===null;
   const f=n&&floors[n-1];
   $('crumb').textContent=f?`TẦNG ${n} · ${f.name}`:'TOÀN TÒA NHÀ';
@@ -663,7 +714,7 @@ function applyStates(){
     const f=l.floor,c=floorStats(f);
     const dots=(c.work?`<span class="ok">●${c.work}</span>`:'')+(c.wait?`<span class="wr">◆${c.wait}</span>`:'')+(c.bad?`<span class="bd">▲${c.bad}</span>`:'')+(c.stuck?`<span class="sk">?${c.stuck}</span>`:'');
     l.el.innerHTML=`<b>T${f.n}</b> ${esc(f.name.length>16?f.name.slice(0,15)+'…':f.name)} <span class="dots">${dots}</span>`;
-    l.el.classList.toggle('sel',view.floor===f.n);l.el.classList.toggle('empty',f.type==='empty');l.el.classList.toggle('dim',view.floor!==null&&view.floor!==f.n);
+    l.el.classList.toggle('sel',view.floor===f.n);l.el.classList.toggle('empty',f.type==='plan');l.el.classList.toggle('dim',view.floor!==null&&view.floor!==f.n);
   }
 }
 
@@ -745,6 +796,16 @@ function panelHTML(id,expanded){
     }
     return h;
   }
+  if(id==='info'){
+    const f=view.floor?floors[view.floor-1]:null;
+    if(!f)return '<div class="empty-note">Chọn một tầng để xem thông tin.</div>';
+    const c=floorStats(f);
+    const img=f.img?`<img class="fimg" src="${f.img}" alt="Ảnh nội thất tầng ${f.n}">`:'';
+    return img+`<div style="font:700 12px var(--f-mono);letter-spacing:.08em;color:${f.color};margin:8px 0 4px">T${f.n} · ${esc(f.name)}</div>`+
+      (f.desc?`<div style="color:#d6dcff;font-size:${expanded?14:12}px;line-height:1.5">${esc(f.desc)}</div>`:'')+
+      `<div class="tiles" style="margin-top:8px"><div class="tile"><b>${f.agents.length}</b><small>nhân sự AI</small></div><div class="tile"><b class="ok">${c.work}</b><small>đang làm</small></div></div>`+
+      (f.agents.length?'':'<div class="empty-note">Tầng này chưa có nhân sự AI.</div>');
+  }
   if(id==='floor'){
     if(view.floor===null){
       const rows=floors.filter(f=>f.type==='dept').slice().reverse().map(f=>{const c=floorStats(f);return `<div class="arow" data-floor="${f.n}" tabindex="0" style="grid-template-columns:36px 1fr auto"><b style="font:700 13px var(--f-mono);color:${f.color}">T${f.n}</b><div><div class="nm">${esc(f.name)}</div><div class="m">${f.agents.length} nhân sự</div></div><span class="m">${c.work?`<span class="ok">●${c.work}</span> `:''}${c.wait?`<span class="wr">◆${c.wait}</span> `:''}${c.bad?`<span class="bd">▲${c.bad}</span>`:''}</span></div>`}).join('');
@@ -777,7 +838,7 @@ function blueprint(){
   });
   return q+'</svg>';
 }
-const TITLES={overview:'Tổng quan',floor:'Nhân sự',approvals:'Chờ duyệt',log:'Nhật ký'};
+const TITLES={info:'Thông tin tầng',overview:'Tổng quan',floor:'Nhân sự',approvals:'Chờ duyệt',log:'Nhật ký'};
 let overlay=null; // {id, agentId}
 function agentDetail(a){
   const st=viewState(a),ts=(tasksByAgent.get(a.id)||[]).slice(0,5);
@@ -816,7 +877,7 @@ function renderFloorList(){
   $('fl').innerHTML=floors.slice().reverse().map(f=>{
     const c=floorStats(f);
     const s=(c.work?`<span class="ok">●${c.work}</span>`:'')+(c.wait?`<span class="wr">◆${c.wait}</span>`:'')+(c.bad?`<span class="bd">▲${c.bad}</span>`:'');
-    return `<div class="fl${view.floor===f.n?' sel':''}${f.type==='empty'?' empty':''}" tabindex="0" data-fl="${f.n}" style="--c:${f.color}"><span class="n">${f.n}</span><span class="t">${esc(f.name)}</span><span class="s">${s}</span></div>`}).join('');
+    return `<div class="fl${view.floor===f.n?' sel':''}${f.type==='plan'?' empty':''}" tabindex="0" data-fl="${f.n}" style="--c:${f.color}"><span class="n">${f.n}</span><span class="t">${esc(f.name)}</span><span class="s">${s}</span></div>`}).join('');
 }
 $('fl').addEventListener('click',e=>{const r=e.target.closest('[data-fl]');if(r)selectFloor(Number(r.dataset.fl))});
 $('fl').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.closest('[data-fl]');if(r)selectFloor(Number(r.dataset.fl))}});
@@ -824,7 +885,9 @@ $('fl').addEventListener('keydown',e=>{if(e.key==='Enter'){const r=e.target.clos
 function refreshUI(){
   if(!data)return;
   applyStates();renderFloorList();
-  for(const id of ['overview','floor','approvals','log'])$('p-'+id).innerHTML=panelHTML(id,false);
+  for(const id of ['overview','info','floor','approvals','log'])$('p-'+id).innerHTML=panelHTML(id,false);
+  $('pn-info').hidden=view.floor===null;$('tb-info').hidden=view.floor===null;
+  $('p-info-t').textContent=view.floor===null?'Thông tin tầng':('Tầng '+view.floor);
   $('p-floor-t').textContent=view.floor===null?'Các tầng':('Tầng '+view.floor);
   renderOverlay();
 }
