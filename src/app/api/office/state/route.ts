@@ -73,6 +73,26 @@ export async function GET() {
           .limit(40)
       : { data: [] };
 
+  // agents.status = 'running' can get stuck if a task dies mid-run before it
+  // resets the agent to idle. Only trust it when the agent really has a task
+  // in progress that started recently; otherwise flag it as possibly stuck
+  // (display only — this route never writes to the database).
+  const RUNNING_TRUST_MS = 30 * 60 * 1000;
+  const { data: activeTasks } =
+    agentIds.length > 0
+      ? await supabase
+          .from("tasks")
+          .select("agent_id")
+          .in("agent_id", agentIds)
+          .eq("status", "in_progress")
+          .gte("created_at", new Date(Date.now() - RUNNING_TRUST_MS).toISOString())
+      : { data: [] };
+  const activeAgentIds = new Set((activeTasks ?? []).map((t) => t.agent_id));
+  const agentsWithFlag = (agents ?? []).map((a) => ({
+    ...a,
+    stuck_running: a.status === "running" && !activeAgentIds.has(a.id),
+  }));
+
   const recentTasks = (tasks ?? []).map((t) => ({
     id: t.id,
     agent_id: t.agent_id,
@@ -100,7 +120,7 @@ export async function GET() {
       generated_at: new Date().toISOString(),
       business_unit: businessUnit,
       departments: departments ?? [],
-      agents: agents ?? [],
+      agents: agentsWithFlag,
       recent_tasks: recentTasks,
       pending_approvals: pendingApprovals ?? 0,
     },
