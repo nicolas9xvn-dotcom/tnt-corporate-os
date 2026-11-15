@@ -41,6 +41,7 @@ h1 span{color:var(--or)}
 .fpill b{color:var(--c,#29e6ff)}
 .fpill .dots{display:flex;gap:4px;font-weight:700}
 .fpill.sel{background:var(--c,#29e6ff);color:#10082a}.fpill.sel b{color:#10082a}
+.fpill::before{content:"";position:absolute;left:-16px;top:50%;width:16px;height:1px;background:var(--c,#29e6ff);box-shadow:0 0 6px var(--c,#29e6ff)}
 .fpill.empty{opacity:.45}
 .fpill.dim{opacity:.3}
 .atag{pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
@@ -1003,25 +1004,27 @@ function frame(){
   if(fxOn&&composer)composer.render();else renderer.render(scene,camera);
   // máy yếu thì tự tắt hiệu ứng phát sáng
   if(!fxLocked&&fxOn){const now=performance.now();if(lastT){fpsAcc+=now-lastT;fpsN++;if(fpsN>=90){if(fpsAcc/fpsN>48){if(++perfStrike>=2)setFx(false,true)}else perfStrike=0;fpsAcc=0;fpsN=0}}lastT=now}else lastT=0;
-  // tên tầng luôn nằm ở mặt tòa nhà quay về phía camera, chạy vòng theo khi xoay
+  // tên tầng luôn nằm ở HÔNG tòa nhà (mép bên phải theo màn hình), chạy vòng theo khi xoay, không che mặt tiền
   {
     let ux=camera.position.x,uz=camera.position.z;const Ln=Math.hypot(ux,uz)||1;ux/=Ln;uz/=Ln;
+    const rx=uz,rz=-ux;                                  // hướng "sang phải màn hình" trong mặt phẳng ngang
     for(const l of floorLabels){
-      const f=l.floor,a=FW/2*f.sc,b=FD/2*f.sc,r=1/Math.sqrt(ux*ux/(a*a)+uz*uz/(b*b));
-      const m=1.2+1.6*Math.pow(Math.max(0,ux),3);       // chừa chỗ cho lõi thang máy khi nhìn từ bên phải
-      l.pos.set(ux*(r+m),(f.n-1)*FH+1.5,uz*(r+m));
+      const f=l.floor,a=FW/2*f.sc,b=FD/2*f.sc,rc=2.4*f.sc;
+      const h=(a-rc)*Math.abs(rx)+(b-rc)*Math.abs(rz)+rc; // khoảng cách từ tâm tới mép tòa nhà theo hướng đó
+      const m=.5+2.6*Math.pow(Math.max(0,rx),2);          // chừa chỗ cho lõi thang máy khi hông phải quay về +x
+      l.pos.set(rx*(h+m),(f.n-1)*FH+1.5,rz*(h+m));
     }
   }
   // nhãn HTML bám theo vị trí 3D
   const W=glHost.clientWidth,H=glHost.clientHeight;
-  const place=(el,pos,show)=>{
+  const place=(el,pos,show,ax='-50%',ay='-100%')=>{
     if(!show){el.style.display='none';return}
     tmp.copy(pos).project(camera);
     if(tmp.z>1){el.style.display='none';return}
     el.style.display='';
-    el.style.transform=`translate(${((tmp.x*.5+.5)*W).toFixed(1)}px,${((-tmp.y*.5+.5)*H).toFixed(1)}px) translate(-50%,-100%)`;
+    el.style.transform=`translate(${((tmp.x*.5+.5)*W).toFixed(1)}px,${((-tmp.y*.5+.5)*H).toFixed(1)}px) translate(${ax},${ay})`;
   };
-  for(const l of floorLabels)place(l.el,l.pos,view.floor===null||l.floor.n<=view.floor);
+  for(const l of floorLabels)place(l.el,l.pos,view.floor===null||l.floor.n<=view.floor,'16px','-50%');
   for(const l of agentLabels)place(l.el,l.pos,view.floor===l.floor);
 }
 
